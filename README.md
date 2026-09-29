@@ -55,6 +55,18 @@ These are the planned technologies for the project.
 
 No separate backend server is planned. Other Firebase services will be added only if a requirement clearly justifies them.
 
+## Development Workflow
+
+The project follows a branch-based Git workflow.
+
+1. Create a branch for each task.
+2. Complete the assigned work.
+3. Commit the changes with a clear commit message.
+4. Push the branch to GitHub.
+5. Create a Pull Request to `main`.
+6. A teammate reviews the Pull Request.
+7. Approved changes are merged into `main`.
+
 ## High-Level Architecture
 
 ```text
