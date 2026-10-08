@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/dashboard/screens/dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +30,22 @@ class TheatreProductionManager extends StatelessWidget {
           brightness: Brightness.light,
         ),
       ),
-      home: const LoginScreen(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          if (snapshot.hasData && snapshot.data != null) {
+            return const DashboardScreen();
+          }
+          return const LoginScreen();
+        },
+      ),
     );
   }
-}
+}

@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:client/features/auth/widgets/auth_text_field.dart';
+import 'package:client/features/dashboard/screens/dashboard_screen.dart';
+import 'package:client/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final AuthService? authService;
+
+  const RegisterScreen({
+    super.key,
+    this.authService,
+  });
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -15,15 +22,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  late final AuthService _authService;
   String? _selectedRole;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   static const List<String> _roles = [
     'Director',
     'Cast Member',
     'Coordinator',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = widget.authService ?? AuthService();
+  }
 
   @override
   void dispose() {
@@ -34,11 +49,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _onCreateAccountPressed() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _onCreateAccountPressed() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.register(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        role: _selectedRole!,
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(authService: _authService),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Account creation will be connected soon.'),
+        SnackBar(
+          content: Text(AuthService.getErrorMessage(e)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -53,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -115,6 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       hintText: 'John Doe',
                       prefixIcon: Icons.person_outline,
                       textInputAction: TextInputAction.next,
+                      enabled: !_isLoading,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter your full name';
@@ -132,6 +177,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
+                      enabled: !_isLoading,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter your email';
@@ -194,11 +240,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Text(role),
                         );
                       }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRole = value;
-                        });
-                      },
+                      onChanged: _isLoading
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _selectedRole = value;
+                              });
+                            },
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please select a role';
@@ -216,6 +264,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icons.lock_outline,
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.next,
+                      enabled: !_isLoading,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -246,6 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       prefixIcon: Icons.lock_reset_outlined,
                       obscureText: _obscureConfirmPassword,
                       textInputAction: TextInputAction.done,
+                      enabled: !_isLoading,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -270,17 +320,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     // Create Account Button
                     FilledButton(
-                      onPressed: _onCreateAccountPressed,
+                      onPressed: _isLoading ? null : _onCreateAccountPressed,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Create Account',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
                     ),
                     const SizedBox(height: 20),
 
@@ -296,9 +355,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop();
+                                },
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.zero,
                             minimumSize: Size.zero,
