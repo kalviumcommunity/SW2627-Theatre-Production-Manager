@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:client/features/auth/screens/register_screen.dart';
 import 'package:client/features/auth/widgets/auth_text_field.dart';
+import 'package:client/features/dashboard/screens/dashboard_screen.dart';
+import 'package:client/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final AuthService? authService;
+
+  const LoginScreen({
+    super.key,
+    this.authService,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -14,7 +21,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  late final AuthService _authService;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = widget.authService ?? AuthService();
+  }
 
   @override
   void dispose() {
@@ -23,11 +38,37 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _onLoginPressed() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _onLoginPressed() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(authService: _authService),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Authentication will be connected soon.'),
+        SnackBar(
+          content: Text(AuthService.getErrorMessage(e)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -97,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
+                      enabled: !_isLoading,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter your email';
@@ -118,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icons.lock_outline,
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.done,
+                      enabled: !_isLoading,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -142,17 +185,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // Login Button
                     FilledButton(
-                      onPressed: _onLoginPressed,
+                      onPressed: _isLoading ? null : _onLoginPressed,
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
                     ),
                     const SizedBox(height: 24),
 
@@ -168,13 +220,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => const RegisterScreen(),
-                              ),
-                            );
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const RegisterScreen(),
+                                    ),
+                                  );
+                                },
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.zero,
                             minimumSize: Size.zero,
@@ -200,4 +254,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
