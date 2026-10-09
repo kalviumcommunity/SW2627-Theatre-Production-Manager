@@ -345,6 +345,43 @@ void main() {
       expect(find.text('Logout'), findsOneWidget);
     });
 
+    testWidgets('displays overview summary cards with neutral placeholders', (WidgetTester tester) async {
+      final fakeAuth = FakeAuthService();
+      await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+
+      expect(find.text('Total Productions'), findsOneWidget);
+      expect(find.text('Upcoming Rehearsals'), findsWidgets);
+      expect(find.text('Auditions'), findsOneWidget);
+      expect(find.text('Venues'), findsOneWidget);
+      expect(find.text('—'), findsNWidgets(4));
+    });
+
+    testWidgets('shows friendly empty state for upcoming rehearsals', (WidgetTester tester) async {
+      final fakeAuth = FakeAuthService();
+      await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+
+      expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
+    });
+
+    testWidgets('navigates to module placeholder and back to dashboard', (WidgetTester tester) async {
+      final fakeAuth = FakeAuthService();
+      await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+
+      // Tap on Total Productions metric card
+      await tester.tap(find.text('Total Productions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Productions Module'), findsOneWidget);
+      expect(find.text('COMING SOON'), findsOneWidget);
+
+      // Tap Back to Dashboard
+      await tester.tap(find.text('Back to Dashboard'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Total Productions'), findsOneWidget);
+      expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
+    });
+
     testWidgets('calls logout and navigates to LoginScreen on logout button tap', (WidgetTester tester) async {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
