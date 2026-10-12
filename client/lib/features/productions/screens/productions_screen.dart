@@ -66,6 +66,29 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     }
   }
 
+  Future<void> _deleteProduction(Production prod) async {
+    try {
+      await _service.deleteProduction(prod.id);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted "${prod.title}"'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete "${prod.title}": $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   List<Production> _filterProductions(List<Production> list) {
     return list.where((p) {
       // Status filter
@@ -90,7 +113,6 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
 
     final content = StreamBuilder<List<Production>>(
       stream: _service.streamProductions(),
-      initialData: _service.sampleProductions,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(
@@ -203,23 +225,12 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
                           childAspectRatio: childAspectRatio,
                         ),
                         delegate: SliverChildBuilderDelegate(
-                          (context, index) {
+                          (itemContext, index) {
                             final prod = filteredList[index];
                             return ProductionCard(
                               production: prod,
                               onTap: () => _navigateToDetails(prod),
-                              onDelete: () async {
-                                await _service.deleteProduction(prod.id);
-                                if (mounted) {
-                                  setState(() {});
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Deleted "${prod.title}"'),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              },
+                              onDelete: () => _deleteProduction(prod),
                             );
                           },
                           childCount: filteredList.length,
@@ -395,69 +406,72 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     bool isFiltered = false,
   }) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isFiltered ? Icons.search_off : Icons.theater_comedy_outlined,
-                size: 64,
-                color: const Color(0xFF8B1E3F),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isFiltered ? Icons.search_off : Icons.theater_comedy_outlined,
+                  size: 48,
+                  color: const Color(0xFF8B1E3F),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            if (isFiltered)
-              OutlinedButton.icon(
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() {
-                    _searchQuery = '';
-                    _selectedStatusFilter = 'All';
-                  });
-                },
-                icon: const Icon(Icons.filter_alt_off, size: 18),
-                label: const Text('Reset Filters'),
-              )
-            else
-              FilledButton.icon(
-                onPressed: _navigateToAddProduction,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Production'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B1E3F),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
-          ],
+              const SizedBox(height: 20),
+              if (isFiltered)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                      _selectedStatusFilter = 'All';
+                    });
+                  },
+                  icon: const Icon(Icons.filter_alt_off, size: 18),
+                  label: const Text('Reset Filters'),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: _navigateToAddProduction,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Production'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B1E3F),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

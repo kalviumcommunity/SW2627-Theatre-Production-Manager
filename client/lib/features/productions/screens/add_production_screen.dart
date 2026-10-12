@@ -131,6 +131,8 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
       _isSaving = true;
     });
 
+    final isEditing = widget.initialProduction != null && widget.initialProduction!.id.isNotEmpty;
+
     try {
       final production = Production(
         id: widget.initialProduction?.id ?? '',
@@ -145,13 +147,23 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
         createdAt: widget.initialProduction?.createdAt ?? DateTime.now(),
       );
 
-      final saved = await _service.createProduction(production);
+      final Production saved;
+      if (isEditing) {
+        await _service.updateProduction(production);
+        saved = production;
+      } else {
+        saved = await _service.createProduction(production);
+      }
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Production "${saved.title}" saved successfully!'),
+          content: Text(
+            isEditing
+                ? 'Production "${saved.title}" updated successfully!'
+                : 'Production "${saved.title}" saved successfully!',
+          ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFF8B1E3F),
         ),
@@ -165,8 +177,13 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save production: $e'),
+          content: Text(
+            isEditing
+                ? 'Failed to update production: $e'
+                : 'Failed to save production: $e',
+          ),
           behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
@@ -175,12 +192,13 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isEditing = widget.initialProduction != null && widget.initialProduction!.id.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Add Production',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          isEditing ? 'Edit Production' : 'Add Production',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: const Icon(Icons.close),
@@ -251,6 +269,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    key: const Key('production_title_input'),
                     controller: _titleController,
                     decoration: InputDecoration(
                       hintText: 'e.g. The Phantom of the Opera',
@@ -281,6 +300,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    key: const Key('production_description_input'),
                     controller: _descriptionController,
                     maxLines: 4,
                     decoration: InputDecoration(
@@ -303,6 +323,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
+                    key: const Key('production_director_input'),
                     controller: _directorController,
                     decoration: InputDecoration(
                       hintText: 'e.g. Sarah Jenkins',
@@ -324,7 +345,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _status,
+                    initialValue: _status,
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.flag_outlined),
                       border: OutlineInputBorder(
@@ -437,6 +458,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                       ),
                       const SizedBox(width: 12),
                       FilledButton.icon(
+                        key: const Key('save_production_button'),
                         onPressed: _isSaving ? null : _onSave,
                         icon: _isSaving
                             ? const SizedBox(
@@ -448,7 +470,11 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                                 ),
                               )
                             : const Icon(Icons.check, size: 18),
-                        label: Text(_isSaving ? 'Saving Production...' : 'Save Production'),
+                        label: Text(
+                          _isSaving
+                              ? (isEditing ? 'Updating Production...' : 'Saving Production...')
+                              : (isEditing ? 'Update Production' : 'Save Production'),
+                        ),
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF8B1E3F),
                           foregroundColor: Colors.white,

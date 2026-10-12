@@ -7,9 +7,12 @@ import 'package:client/features/productions/screens/add_production_screen.dart';
 import 'package:client/features/productions/screens/production_details_screen.dart';
 import 'package:client/features/productions/widgets/production_card.dart';
 
-// Test mock service with configurable data
+// Test mock service with configurable data and failure simulation
 class FakeProductionService extends ProductionService {
   List<Production> customProductions;
+  bool shouldThrowOnCreate = false;
+  bool shouldThrowOnUpdate = false;
+  bool shouldThrowOnDelete = false;
 
   FakeProductionService({List<Production>? initialProductions})
       : customProductions = initialProductions != null
@@ -29,6 +32,9 @@ class FakeProductionService extends ProductionService {
 
   @override
   Future<Production> createProduction(Production production) async {
+    if (shouldThrowOnCreate) {
+      throw Exception('Firestore write permission denied');
+    }
     final created = production.copyWith(
       id: 'test-id-${customProductions.length + 1}',
     );
@@ -37,7 +43,21 @@ class FakeProductionService extends ProductionService {
   }
 
   @override
+  Future<void> updateProduction(Production production) async {
+    if (shouldThrowOnUpdate) {
+      throw Exception('Firestore update failed');
+    }
+    final index = customProductions.indexWhere((p) => p.id == production.id);
+    if (index != -1) {
+      customProductions[index] = production;
+    }
+  }
+
+  @override
   Future<void> deleteProduction(String id) async {
+    if (shouldThrowOnDelete) {
+      throw Exception('Firestore delete failed');
+    }
     customProductions.removeWhere((p) => p.id == id);
   }
 }
@@ -116,6 +136,24 @@ void main() {
       expect(updated.id, '1');
       expect(updated.title, 'Updated');
       expect(updated.status, ProductionStatus.completed);
+    });
+  });
+
+  group('ProductionService Data Separation Tests', () {
+    test('sampleProductions remains separate from default service instances', () async {
+      // By default without sample data flag, mock store starts empty
+      final service = ProductionService();
+      final productions = await service.getProductions();
+      expect(productions.isEmpty, isTrue);
+
+      // Curated sample productions exist separately as a static template
+      expect(ProductionService.sampleProductions.length, 4);
+    });
+
+    test('mock service can opt into sample data explicitly when desired', () async {
+      final service = ProductionService(loadSampleDataInMockMode: true);
+      final productions = await service.getProductions();
+      expect(productions.length, 4);
     });
   });
 
@@ -216,6 +254,34 @@ void main() {
       expect(find.text('The Phantom of the Opera'), findsNothing);
     });
 
+    testWidgets('surfaces error SnackBar when delete fails from card popup menu', (WidgetTester tester) async {
+      final fakeService = FakeProductionService(
+        initialProductions: [
+          Production(
+            id: '1',
+            title: 'The Phantom of the Opera',
+            status: ProductionStatus.inRehearsal,
+          ),
+        ],
+      )..shouldThrowOnDelete = true;
+
+      await tester.pumpWidget(
+        buildApp(ProductionsScreen(productionService: fakeService)),
+      );
+      await tester.pumpAndSettle();
+
+      // Open card popup menu
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      // Tap delete in popup menu
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Failed to delete "The Phantom of the Opera"'), findsOneWidget);
+      expect(fakeService.customProductions.length, 1);
+    });
+
     testWidgets('navigates to AddProductionScreen when Add Production is tapped', (WidgetTester tester) async {
       final fakeService = FakeProductionService(initialProductions: []);
 
@@ -224,7 +290,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap on the FloatingActionButton 'Add Production'
       final addFab = find.widgetWithText(FloatingActionButton, 'Add Production');
       await tester.tap(addFab);
       await tester.pumpAndSettle();
@@ -235,6 +300,13 @@ void main() {
 
   group('AddProductionScreen Tests', () {
     testWidgets('shows validation error when submitting with empty title', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -242,7 +314,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
       await tester.pump();
 
@@ -250,6 +323,13 @@ void main() {
     });
 
     testWidgets('validates end date cannot be earlier than start date', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -260,14 +340,15 @@ void main() {
               id: 'init-1',
               title: 'Macbeth',
               startDate: DateTime(2026, 12, 1),
-              endDate: DateTime(2026, 10, 1), // earlier than start date
+              endDate: DateTime(2026, 10, 1),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
       await tester.pump();
 
@@ -275,7 +356,40 @@ void main() {
       expect(fakeService.customProductions.isEmpty, isTrue);
     });
 
+    testWidgets('surfaces error SnackBar when creation fails', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final fakeService = FakeProductionService()..shouldThrowOnCreate = true;
+
+      await tester.pumpWidget(
+        buildApp(AddProductionScreen(productionService: fakeService)),
+      );
+      await tester.pumpAndSettle();
+
+      final titleField = find.byKey(const Key('production_title_input'));
+      await tester.enterText(titleField, 'Hamlet');
+
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pump();
+
+      expect(find.textContaining('Failed to save production:'), findsOneWidget);
+    });
+
     testWidgets('successfully creates production with valid data', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -283,16 +397,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final titleField = find.widgetWithText(TextFormField, 'Production Title *');
+      final titleField = find.byKey(const Key('production_title_input'));
       await tester.enterText(titleField, 'Hamlet');
 
-      final descField = find.widgetWithText(TextFormField, 'Description & Synopsis');
+      final descField = find.byKey(const Key('production_description_input'));
       await tester.enterText(descField, 'Prince of Denmark tragedy');
 
-      final directorField = find.widgetWithText(TextFormField, 'Director (Optional)');
+      final directorField = find.byKey(const Key('production_director_input'));
       await tester.enterText(directorField, 'Kenneth Branagh');
 
-      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
@@ -300,6 +415,44 @@ void main() {
       expect(fakeService.customProductions.first.title, 'Hamlet');
       expect(fakeService.customProductions.first.description, 'Prince of Denmark tragedy');
       expect(fakeService.customProductions.first.director, 'Kenneth Branagh');
+    });
+
+    testWidgets('successfully updates existing production in edit mode', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final existing = Production(
+        id: 'prod-edit-1',
+        title: 'Original Title',
+        description: 'Original Desc',
+      );
+      final fakeService = FakeProductionService(initialProductions: [existing]);
+
+      await tester.pumpWidget(
+        buildApp(
+          AddProductionScreen(
+            initialProduction: existing,
+            productionService: fakeService,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit Production'), findsOneWidget);
+
+      final titleField = find.byKey(const Key('production_title_input'));
+      await tester.enterText(titleField, 'Updated Title');
+
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      expect(fakeService.customProductions.first.title, 'Updated Title');
     });
   });
 
@@ -332,6 +485,29 @@ void main() {
       expect(find.text('Back to Productions List'), findsOneWidget);
     });
 
+    testWidgets('surfaces error SnackBar when delete fails from details screen', (WidgetTester tester) async {
+      final prod = const Production(
+        id: 'det-err',
+        title: 'Othello',
+      );
+      final fakeService = FakeProductionService()..shouldThrowOnDelete = true;
+
+      await tester.pumpWidget(
+        buildApp(ProductionDetailsScreen(production: prod, productionService: fakeService)),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap delete in AppBar
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      // Confirm in dialog
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Failed to delete:'), findsOneWidget);
+    });
+
     testWidgets('pops back to productions list when back button is tapped', (WidgetTester tester) async {
       final prod = const Production(
         id: 'det-2',
@@ -340,18 +516,24 @@ void main() {
 
       await tester.pumpWidget(
         buildApp(
-          Navigator(
-            onGenerateRoute: (settings) => MaterialPageRoute(
-              builder: (context) => ProductionDetailsScreen(production: prod),
+          Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProductionDetailsScreen(production: prod),
+                ),
+              ),
+              child: const Text('Open Details'),
             ),
           ),
         ),
       );
+      await tester.tap(find.text('Open Details'));
       await tester.pumpAndSettle();
 
       expect(find.text('Twelfth Night'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Back to Productions List'));
+      await tester.tap(find.byTooltip('Back to Productions'));
       await tester.pumpAndSettle();
 
       expect(find.text('Twelfth Night'), findsNothing);
