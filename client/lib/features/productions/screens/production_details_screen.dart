@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/production_model.dart';
 import '../services/production_service.dart';
+import 'add_production_screen.dart';
 
 class ProductionDetailsScreen extends StatefulWidget {
   final Production production;
@@ -73,9 +74,27 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           SnackBar(
             content: Text('Failed to delete: $e'),
             behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.redAccent,
           ),
         );
       }
+    }
+  }
+
+  Future<void> _navigateToEdit() async {
+    final updated = await Navigator.of(context).push<Production>(
+      MaterialPageRoute(
+        builder: (context) => AddProductionScreen(
+          initialProduction: _production,
+          productionService: _service,
+        ),
+      ),
+    );
+
+    if (updated != null && mounted) {
+      setState(() {
+        _production = updated;
+      });
     }
   }
 
@@ -95,6 +114,11 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Production',
+            onPressed: _isDeleting ? null : _navigateToEdit,
+          ),
           IconButton(
             icon: _isDeleting
                 ? const SizedBox(
