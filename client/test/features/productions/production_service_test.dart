@@ -183,6 +183,27 @@ void main() {
       expect(prod.createdAt, DateTime(2026, 10, 1));
     });
 
+    test('parses documents with string date formats, null optional fields, and Unicode characters', () async {
+      productionsCollection.docs['doc-unicode'] = {
+        'title': 'Les Misérables',
+        'description': 'Features Christine Daaé in guest performance',
+        'startDate': '2026-11-01T10:00:00.000Z',
+        'endDate': null,
+      };
+
+      final result = await service.getProductions();
+      expect(result.length, 1);
+      final prod = result.first;
+      expect(prod.id, 'doc-unicode');
+      expect(prod.title, 'Les Misérables');
+      expect(prod.description, contains('Christine Daaé'));
+      expect(prod.startDate, DateTime.parse('2026-11-01T10:00:00.000Z'));
+      expect(prod.endDate, isNull);
+      expect(prod.director, isNull);
+      expect(prod.status, ProductionStatus.planning);
+      expect(prod.createdAt, isNull);
+    });
+
     test('preserves descending date ordering by start date', () async {
       productionsCollection.docs['doc-early'] = {
         'title': 'Early Production',
@@ -220,6 +241,24 @@ void main() {
       expect(result.length, 2);
       expect(result[0].title, 'Newer Created');
       expect(result[1].title, 'Older Created');
+    });
+
+    test('falls back to createdAt descending when startDates are equal', () async {
+      productionsCollection.docs['doc-same-date-older'] = {
+        'title': 'Same Start Older Created',
+        'startDate': Timestamp.fromDate(DateTime(2026, 6, 1)),
+        'createdAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+      };
+      productionsCollection.docs['doc-same-date-newer'] = {
+        'title': 'Same Start Newer Created',
+        'startDate': Timestamp.fromDate(DateTime(2026, 6, 1)),
+        'createdAt': Timestamp.fromDate(DateTime(2026, 3, 1)),
+      };
+
+      final result = await service.getProductions();
+      expect(result.length, 2);
+      expect(result[0].title, 'Same Start Newer Created');
+      expect(result[1].title, 'Same Start Older Created');
     });
 
     test('falls back to title ordering when both startDate and createdAt are null', () async {
@@ -353,6 +392,7 @@ void main() {
 
   group('ProductionService - createProduction()', () {
     test('saves production and returns actual Firestore document ID', () async {
+      final initialCount = productionsCollection.docs.length;
       final input = Production(
         id: '',
         title: 'Othello',
@@ -367,7 +407,8 @@ void main() {
       expect(created.title, 'Othello');
       expect(created.status, ProductionStatus.inRehearsal);
 
-      // Verify document was written to fake Firestore
+      // Verify exactly one document was written to Firestore
+      expect(productionsCollection.docs.length, initialCount + 1);
       expect(productionsCollection.docs.containsKey('real-doc-id-1'), isTrue);
       final storedData = productionsCollection.docs['real-doc-id-1']!;
       expect(storedData['title'], 'Othello');
@@ -375,6 +416,7 @@ void main() {
     });
 
     test('propagates write errors without returning a fake ID', () async {
+      final initialCount = productionsCollection.docs.length;
       productionsCollection.shouldThrowOnAdd = true;
       productionsCollection.errorToThrow = FirebaseException(
         plugin: 'firestore',
@@ -388,6 +430,9 @@ void main() {
         () => service.createProduction(input),
         throwsA(isA<FirebaseException>().having((e) => e.code, 'code', 'unauthenticated')),
       );
+
+      // Verify no document was added on failure
+      expect(productionsCollection.docs.length, initialCount);
     });
   });
 
@@ -495,6 +540,24 @@ void main() {
 
     test('sampleProductions returns unmodifiable demo data for compatibility', () {
       expect(service.sampleProductions.length, 4);
+    });
+
+    test('empty Firestore collection returns empty list and never falls back to demo data', () async {
+      final productions = await service.getProductions();
+      expect(productions, isEmpty);
+      expect(productions, isNot(ProductionService.demoProductions));
+
+      final streamResult = await service.streamProductions().first;
+      expect(streamResult, isEmpty);
+      expect(streamResult, isNot(ProductionService.demoProductions));
+    });
+
+    test('Firestore errors propagate and never fall back to demo data', () async {
+      productionsCollection.shouldThrowOnGet = true;
+      expect(
+        () => service.getProductions(),
+        throwsA(isA<FirebaseException>()),
+      );
     });
   });
 }
