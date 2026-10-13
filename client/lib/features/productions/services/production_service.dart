@@ -17,7 +17,7 @@ class ProductionService {
       id: 'sample-1',
       title: 'The Phantom of the Opera',
       description:
-          'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daa\u00E9.',
+          'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daaé.',
       startDate: DateTime(2026, 10, 1),
       endDate: DateTime(2026, 11, 25),
       status: ProductionStatus.inRehearsal,
@@ -37,7 +37,7 @@ class ProductionService {
     ),
     Production(
       id: 'sample-3',
-      title: 'Les Mis\u00E9rables',
+      title: 'Les Misérables',
       description:
           'An epic tale of passion, sacrifice, and redemption set against the backdrop of 19th-century revolutionary France.',
       startDate: DateTime(2026, 7, 1),
