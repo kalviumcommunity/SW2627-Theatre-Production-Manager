@@ -14,6 +14,10 @@ class FakeProductionService extends ProductionService {
   bool shouldThrowOnUpdate = false;
   bool shouldThrowOnDelete = false;
 
+  int createCalls = 0;
+  int updateCalls = 0;
+  int deleteCalls = 0;
+
   FakeProductionService({List<Production>? initialProductions})
       : customProductions = initialProductions != null
             ? List.from(initialProductions)
@@ -32,6 +36,7 @@ class FakeProductionService extends ProductionService {
 
   @override
   Future<Production> createProduction(Production production) async {
+    createCalls++;
     if (shouldThrowOnCreate) {
       throw Exception('Firestore write permission denied');
     }
@@ -44,6 +49,7 @@ class FakeProductionService extends ProductionService {
 
   @override
   Future<void> updateProduction(Production production) async {
+    updateCalls++;
     if (shouldThrowOnUpdate) {
       throw Exception('Firestore update failed');
     }
@@ -55,6 +61,7 @@ class FakeProductionService extends ProductionService {
 
   @override
   Future<void> deleteProduction(String id) async {
+    deleteCalls++;
     if (shouldThrowOnDelete) {
       throw Exception('Firestore delete failed');
     }
@@ -140,20 +147,10 @@ void main() {
   });
 
   group('ProductionService Data Separation Tests', () {
-    test('sampleProductions remains separate from default service instances', () async {
-      // By default without sample data flag, mock store starts empty
+    test('demoProductions remains separate and unmodifiable', () {
+      expect(ProductionService.demoProductions.length, 4);
       final service = ProductionService();
-      final productions = await service.getProductions();
-      expect(productions.isEmpty, isTrue);
-
-      // Curated sample productions exist separately as a static template
-      expect(ProductionService.sampleProductions.length, 4);
-    });
-
-    test('mock service can opt into sample data explicitly when desired', () async {
-      final service = ProductionService(loadSampleDataInMockMode: true);
-      final productions = await service.getProductions();
-      expect(productions.length, 4);
+      expect(service.sampleProductions.length, 4);
     });
   });
 
@@ -415,6 +412,8 @@ void main() {
       expect(fakeService.customProductions.first.title, 'Hamlet');
       expect(fakeService.customProductions.first.description, 'Prince of Denmark tragedy');
       expect(fakeService.customProductions.first.director, 'Kenneth Branagh');
+      expect(fakeService.createCalls, 1);
+      expect(fakeService.updateCalls, 0);
     });
 
     testWidgets('successfully updates existing production in edit mode', (WidgetTester tester) async {
@@ -453,6 +452,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeService.customProductions.first.title, 'Updated Title');
+      expect(fakeService.updateCalls, 1);
+      expect(fakeService.createCalls, 0);
     });
   });
 

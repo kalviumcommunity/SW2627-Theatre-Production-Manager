@@ -113,6 +113,8 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
   }
 
   Future<void> _onSave() async {
+    if (_isSaving) return;
+
     // Validate text inputs
     final isFormValid = _formKey.currentState?.validate() ?? false;
     final areDatesValid = _validateDates();
@@ -240,14 +242,16 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'New Theatre Production',
+                                isEditing ? 'Edit Theatre Production' : 'New Theatre Production',
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF8B1E3F),
                                 ),
                               ),
                               Text(
-                                'Fill in the production details, run dates, and initial stage status.',
+                                isEditing
+                                    ? 'Update the production details, run dates, and stage status.'
+                                    : 'Fill in the production details, run dates, and initial stage status.',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
