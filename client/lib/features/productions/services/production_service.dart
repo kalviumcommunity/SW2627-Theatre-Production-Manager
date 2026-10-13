@@ -1,35 +1,23 @@
-// ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/production_model.dart';
 
 class ProductionService {
-  final FirebaseFirestore? _firestore;
+  final FirebaseFirestore? _customFirestore;
 
-  // Broadcast controller to emit in-memory updates when explicitly using mock/local mode
-  final StreamController<List<Production>> _mockStreamController =
-      StreamController<List<Production>>.broadcast();
+  ProductionService({FirebaseFirestore? firestore})
+      : _customFirestore = firestore;
 
-  // In-memory mock productions (only used when firestore is null or in explicit mock mode)
-  final List<Production> _mockProductions = [];
+  FirebaseFirestore get firestore =>
+      _customFirestore ?? FirebaseFirestore.instance;
 
-  ProductionService({
-    FirebaseFirestore? firestore,
-    bool loadSampleDataInMockMode = false,
-  }) : _firestore = firestore {
-    if (loadSampleDataInMockMode && _firestore == null) {
-      _mockProductions.addAll(sampleProductions);
-    }
-  }
-
-  /// Curated sample productions for testing or manual preview.
-  /// Kept strictly separate from real Firestore production data.
-  static List<Production> get sampleProductions => [
+  /// Explicit demo/test data for development or testing purposes.
+  static final List<Production> demoProductions = List.unmodifiable([
     Production(
       id: 'sample-1',
       title: 'The Phantom of the Opera',
       description:
-          'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daaé.',
+          'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daa\u00E9.',
       startDate: DateTime(2026, 10, 1),
       endDate: DateTime(2026, 11, 25),
       status: ProductionStatus.inRehearsal,
@@ -49,7 +37,7 @@ class ProductionService {
     ),
     Production(
       id: 'sample-3',
-      title: 'Les Misérables',
+      title: 'Les Mis\u00E9rables',
       description:
           'An epic tale of passion, sacrifice, and redemption set against the backdrop of 19th-century revolutionary France.',
       startDate: DateTime(2026, 7, 1),
@@ -69,136 +57,83 @@ class ProductionService {
       director: 'Elena Rostova',
       createdAt: DateTime(2026, 10, 5),
     ),
-  ];
+  ]);
 
-  FirebaseFirestore? get firestore {
-    try {
-      return _firestore ?? FirebaseFirestore.instance;
-    } catch (_) {
-      return null;
-    }
-  }
+  /// Preserved for backwards compatibility with existing UI callers.
+  /// Exposes unmodifiable demo productions. Callers should avoid using this as
+  /// initialData to prevent showing demo data before Firestore loads.
+  List<Production> get sampleProductions => demoProductions;
 
-  /// Streams productions.
-  /// If Firestore is available:
-  /// - Streams from the `productions` collection.
-  /// - Returns an empty list `[]` when the collection has no documents.
-  /// - Propagates stream errors so the UI can display error states.
-  /// If Firestore is not available:
-  /// - Emits from the in-memory mock repository.
+  /// Streams productions from Cloud Firestore.
+  /// Empty collections emit an empty list. Stream errors are propagated to the caller.
   Stream<List<Production>> streamProductions() {
-    final fs = firestore;
-    if (fs != null) {
-      return fs
-          .collection('productions')
-          .snapshots()
-          .map((snapshot) {
-            if (snapshot.docs.isEmpty) {
-              return const <Production>[];
-            }
-            final list = snapshot.docs
-                .map((doc) => Production.fromFirestore(doc))
-                .toList();
-            list.sort((a, b) {
-              final aDate = a.startDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-              final bDate = b.startDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-              return bDate.compareTo(aDate);
-            });
-            return list;
-          });
-    }
-
-    // In-memory mock stream for testing or offline environments
-    return Stream<List<Production>>.multi((controller) {
-      controller.add(List.unmodifiable(_mockProductions));
-      final sub = _mockStreamController.stream.listen(
-        controller.add,
-        onError: controller.addError,
-        onDone: controller.close,
-      );
-      controller.onCancel = () => sub.cancel();
-    });
-  }
-
-  /// Fetches production list.
-  /// If Firestore is available:
-  /// - Fetches from `productions` collection.
-  /// - Returns `[]` if collection has no documents.
-  /// - Surfaces errors to caller.
-  /// If Firestore is not available:
-  /// - Returns in-memory mock productions.
-  Future<List<Production>> getProductions() async {
-    final fs = firestore;
-    if (fs != null) {
-      final snapshot = await fs.collection('productions').get();
+    return firestore.collection('productions').snapshots().map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        return const <Production>[];
+        return <Production>[];
       }
       final list = snapshot.docs
           .map((doc) => Production.fromFirestore(doc))
           .toList();
-      list.sort((a, b) {
-        final aDate = a.startDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b.startDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return bDate.compareTo(aDate);
-      });
+      _sortProductions(list);
       return list;
-    }
-
-    return List.unmodifiable(_mockProductions);
+    });
   }
 
-  /// Adds a new production.
-  /// If Firestore is available:
-  /// - Persists to Firestore. Any write error is thrown to caller so UI surfaces the failure.
-  /// - Never silently falls back to in-memory on Firestore write failure.
+  /// Fetches production list from Firestore.
+  /// Returns empty list if collection is empty. Propagates errors to the caller.
+  Future<List<Production>> getProductions() async {
+    final snapshot = await firestore.collection('productions').get();
+    if (snapshot.docs.isEmpty) {
+      return <Production>[];
+    }
+    final list = snapshot.docs
+        .map((doc) => Production.fromFirestore(doc))
+        .toList();
+    _sortProductions(list);
+    return list;
+  }
+
+  /// Adds a new production to Firestore and returns the production with its
+  /// real Firestore-generated document ID. Propagates failures to the caller.
   Future<Production> createProduction(Production production) async {
-    final fs = firestore;
-    if (fs != null) {
-      final docRef = await fs.collection('productions').add(production.toMap());
-      return production.copyWith(id: docRef.id);
-    }
-
-    // Mock store write
-    final fallbackId = 'prod-${DateTime.now().millisecondsSinceEpoch}';
-    final created = production.copyWith(id: fallbackId);
-    _mockProductions.insert(0, created);
-    _mockStreamController.add(List.unmodifiable(_mockProductions));
-    return created;
+    final docRef = await firestore.collection('productions').add(production.toMap());
+    return production.copyWith(id: docRef.id);
   }
 
-  /// Updates an existing production.
-  /// If Firestore is available:
-  /// - Updates Firestore document. Failures are thrown so UI can display them.
+  /// Updates an existing production in Firestore.
+  /// Propagates failures to the caller.
   Future<void> updateProduction(Production production) async {
-    final fs = firestore;
-    if (fs != null) {
-      await fs.collection('productions').doc(production.id).update(production.toMap());
-      return;
+    if (production.id.trim().isEmpty) {
+      throw ArgumentError('Production ID cannot be empty for update.');
     }
-
-    final index = _mockProductions.indexWhere((p) => p.id == production.id);
-    if (index != -1) {
-      _mockProductions[index] = production;
-      _mockStreamController.add(List.unmodifiable(_mockProductions));
-    }
+    await firestore
+        .collection('productions')
+        .doc(production.id.trim())
+        .update(production.toMap());
   }
 
-  /// Deletes a production by ID.
-  /// If Firestore is available:
-  /// - Deletes from Firestore. Failures are thrown so UI can display them.
+  /// Deletes a production by document ID in Firestore.
+  /// Propagates failures to the caller.
   Future<void> deleteProduction(String id) async {
-    final fs = firestore;
-    if (fs != null) {
-      await fs.collection('productions').doc(id).delete();
-      return;
+    if (id.trim().isEmpty) {
+      throw ArgumentError('Production ID cannot be empty for deletion.');
     }
-
-    _mockProductions.removeWhere((p) => p.id == id);
-    _mockStreamController.add(List.unmodifiable(_mockProductions));
+    await firestore.collection('productions').doc(id.trim()).delete();
   }
 
-  void dispose() {
-    _mockStreamController.close();
+  static void _sortProductions(List<Production> list) {
+    list.sort((a, b) {
+      final aDate = a.startDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.startDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final cmp = bDate.compareTo(aDate);
+      if (cmp != 0) return cmp;
+      if (a.createdAt != null && b.createdAt != null) {
+        final createdCmp = b.createdAt!.compareTo(a.createdAt!);
+        if (createdCmp != 0) return createdCmp;
+      }
+      return a.title.compareTo(b.title);
+    });
   }
+
+  void dispose() {}
 }
