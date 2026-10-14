@@ -135,7 +135,7 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 800),
@@ -144,35 +144,35 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
               children: [
                 // Top Banner Card
                 _buildHeaderBanner(theme),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
                 // Date Timeline Card
                 _buildTimelineCard(theme),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
                 // Description Card
                 _buildDescriptionCard(theme),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // Associated Modules placeholder section
-                _buildConnectedModules(theme),
-                const SizedBox(height: 32),
-
-                // Bottom Back Action
+                // Back to Productions List Action
                 Center(
                   child: OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.arrow_back, size: 18),
                     label: const Text('Back to Productions List'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Associated Modules placeholder section
+                _buildConnectedModules(theme),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -184,7 +184,7 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
   Widget _buildHeaderBanner(ThemeData theme) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),

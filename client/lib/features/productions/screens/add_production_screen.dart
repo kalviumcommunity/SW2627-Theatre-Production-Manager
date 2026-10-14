@@ -223,10 +223,10 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                   // Form header card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: const Color(0xFF8B1E3F).withValues(alpha: 0.2),
                       ),
@@ -236,50 +236,32 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                         const Icon(
                           Icons.theater_comedy,
                           color: Color(0xFF8B1E3F),
-                          size: 28,
+                          size: 22,
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isEditing ? 'Edit Theatre Production' : 'New Theatre Production',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF8B1E3F),
-                                ),
-                              ),
-                              Text(
-                                isEditing
-                                    ? 'Update the production details, run dates, and stage status.'
-                                    : 'Fill in the production details, run dates, and initial stage status.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            isEditing ? 'Edit Theatre Production' : 'New Theatre Production',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF8B1E3F),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Production Title (Required)
-                  Text(
-                    'Production Title *',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   TextFormField(
                     key: const Key('production_title_input'),
                     controller: _titleController,
                     decoration: InputDecoration(
+                      labelText: 'Production Title *',
                       hintText: 'e.g. The Phantom of the Opera',
-                      prefixIcon: const Icon(Icons.movie_creation_outlined),
+                      prefixIcon: const Icon(Icons.movie_creation_outlined, size: 20),
+                      isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -295,22 +277,17 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                     },
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // Description
-                  Text(
-                    'Description & Synopsis',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   TextFormField(
                     key: const Key('production_description_input'),
                     controller: _descriptionController,
-                    maxLines: 4,
+                    maxLines: 2,
                     decoration: InputDecoration(
+                      labelText: 'Description & Synopsis',
                       hintText: 'Provide a brief summary, script notes, or story premise...',
+                      isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -318,42 +295,32 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                     ),
                     textInputAction: TextInputAction.newline,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // Director
-                  Text(
-                    'Director (Optional)',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   TextFormField(
                     key: const Key('production_director_input'),
                     controller: _directorController,
                     decoration: InputDecoration(
+                      labelText: 'Director (Optional)',
                       hintText: 'e.g. Sarah Jenkins',
-                      prefixIcon: const Icon(Icons.person_outline),
+                      prefixIcon: const Icon(Icons.person_outline, size: 20),
+                      isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                     textInputAction: TextInputAction.next,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // Status Dropdown
-                  Text(
-                    'Production Status',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: _status,
                     decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.flag_outlined),
+                      labelText: 'Production Status',
+                      prefixIcon: const Icon(Icons.flag_outlined, size: 20),
+                      isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -372,16 +339,9 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                       }
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
                   // Date Range Pickers
-                  Text(
-                    'Run Dates',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -399,7 +359,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _buildDatePickerTile(
                           label: 'End Date',
@@ -446,7 +406,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 16),
 
                   // Action Buttons
                   Row(
@@ -455,7 +415,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                       OutlinedButton(
                         onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -468,23 +428,21 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
                         onPressed: _isSaving ? null : _onSave,
                         icon: _isSaving
                             ? const SizedBox(
-                                width: 18,
-                                height: 18,
+                                width: 16,
+                                height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Icons.check, size: 18),
+                            : const Icon(Icons.check, size: 16),
                         label: Text(
-                          _isSaving
-                              ? (isEditing ? 'Updating Production...' : 'Saving Production...')
-                              : (isEditing ? 'Update Production' : 'Save Production'),
+                          _isSaving ? 'Saving Production...' : 'Save Production',
                         ),
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF8B1E3F),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),

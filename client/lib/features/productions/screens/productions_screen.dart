@@ -184,13 +184,15 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
               // Header Section
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeaderRow(theme, rawProductions.length),
-                      const SizedBox(height: 16),
-                      _buildSearchAndFilters(theme),
+                      if (rawProductions.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildSearchAndFilters(theme),
+                      ],
                     ],
                   ),
                 ),
@@ -426,71 +428,69 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
   }) {
     return Center(
       child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isFiltered ? Icons.search_off : Icons.theater_comedy_outlined,
-                  size: 48,
-                  color: const Color(0xFF8B1E3F),
-                ),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 16),
-              Text(
-                title,
+              child: Icon(
+                isFiltered ? Icons.search_off : Icons.theater_comedy_outlined,
+                size: 38,
+                color: const Color(0xFF8B1E3F),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Text(
+                subtitle,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            if (isFiltered)
+              OutlinedButton.icon(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {
+                    _searchQuery = '';
+                    _selectedStatusFilter = 'All';
+                  });
+                },
+                icon: const Icon(Icons.filter_alt_off, size: 16),
+                label: const Text('Reset Filters'),
+              )
+            else
+              FilledButton.icon(
+                onPressed: _navigateToAddProduction,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add Production'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF8B1E3F),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              if (isFiltered)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                      _selectedStatusFilter = 'All';
-                    });
-                  },
-                  icon: const Icon(Icons.filter_alt_off, size: 18),
-                  label: const Text('Reset Filters'),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: _navigateToAddProduction,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add Production'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF8B1E3F),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
