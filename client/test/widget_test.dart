@@ -8,6 +8,7 @@ import 'package:client/features/productions/screens/productions_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
 import 'package:client/features/productions/models/production_model.dart';
 import 'package:client/services/auth_service.dart';
+import 'package:client/services/user_service.dart';
 
 class _FakeProductionService extends ProductionService {
   final List<Production> productions;
@@ -57,13 +58,13 @@ class FakeAuthService extends AuthService {
     required String name,
     required String email,
     required String password,
-    required String role,
+    String? role,
   }) async {
     registerCalled = true;
     lastRegisterName = name;
     lastRegisterEmail = email;
     lastRegisterPassword = password;
-    lastRegisterRole = role;
+    lastRegisterRole = 'Cast Member';
     if (shouldThrowError) {
       throw FirebaseAuthException(
         code: 'email-already-in-use',
@@ -82,6 +83,53 @@ class FakeAuthService extends AuthService {
 class _FakeUserCredential implements UserCredential {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeFirebaseAuthForRegister extends Fake implements FirebaseAuth {
+  final User? _user;
+  _FakeFirebaseAuthForRegister(this._user);
+
+  @override
+  Future<UserCredential> createUserWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    return _FakeUserCredentialForRegister(_user);
+  }
+}
+
+class _FakeUserForRegister extends Fake implements User {
+  @override
+  final String uid;
+  @override
+  final String? email;
+
+  _FakeUserForRegister({required this.uid, this.email});
+}
+
+class _FakeUserCredentialForRegister extends Fake implements UserCredential {
+  @override
+  final User? user;
+  _FakeUserCredentialForRegister(this.user);
+}
+
+class _TrackingUserService extends UserService {
+  Map<String, dynamic>? lastCreatedProfile;
+
+  @override
+  Future<void> createUserProfile({
+    required String uid,
+    required String name,
+    required String email,
+    required String role,
+  }) async {
+    lastCreatedProfile = {
+      'uid': uid,
+      'name': name,
+      'email': email,
+      'role': role,
+    };
+  }
 }
 
 void main() {
@@ -125,6 +173,50 @@ void main() {
         AuthService.getErrorMessage(Exception('unknown')),
         'Something went wrong. Please try again.',
       );
+    });
+
+    test('register creates a Cast Member profile in Firestore', () async {
+      final fakeUser = _FakeUserForRegister(uid: 'user-actor-1', email: 'actor@theatre.org');
+      final fakeAuth = _FakeFirebaseAuthForRegister(fakeUser);
+      final fakeUserService = _TrackingUserService();
+      final authService = AuthService(
+        firebaseAuth: fakeAuth,
+        userService: fakeUserService,
+      );
+
+      await authService.register(
+        name: 'Jane Actor',
+        email: 'actor@theatre.org',
+        password: 'password123',
+      );
+
+      expect(fakeUserService.lastCreatedProfile, isNotNull);
+      expect(fakeUserService.lastCreatedProfile!['uid'], 'user-actor-1');
+      expect(fakeUserService.lastCreatedProfile!['name'], 'Jane Actor');
+      expect(fakeUserService.lastCreatedProfile!['email'], 'actor@theatre.org');
+      expect(fakeUserService.lastCreatedProfile!['role'], 'Cast Member');
+    });
+
+    test('register ignores caller-supplied role and prevents obtaining Director role', () async {
+      final fakeUser = _FakeUserForRegister(uid: 'user-attacker-1', email: 'attacker@theatre.org');
+      final fakeAuth = _FakeFirebaseAuthForRegister(fakeUser);
+      final fakeUserService = _TrackingUserService();
+      final authService = AuthService(
+        firebaseAuth: fakeAuth,
+        userService: fakeUserService,
+      );
+
+      // Caller attempts to supply the privileged 'Director' role
+      await authService.register(
+        name: 'Malicious User',
+        email: 'attacker@theatre.org',
+        password: 'password123',
+        role: 'Director',
+      );
+
+      expect(fakeUserService.lastCreatedProfile, isNotNull);
+      expect(fakeUserService.lastCreatedProfile!['role'], 'Cast Member');
+      expect(fakeUserService.lastCreatedProfile!['role'], isNot('Director'));
     });
   });
 
@@ -205,7 +297,7 @@ void main() {
   });
 
   group('RegisterScreen Tests', () {
-    testWidgets('shows validation errors on empty submission', (WidgetTester tester) async {
+    testWidgets('shows validation errors on empty submission without role prompt', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -222,9 +314,33 @@ void main() {
 
       expect(find.text('Please enter your full name'), findsOneWidget);
       expect(find.text('Please enter your email'), findsOneWidget);
-      expect(find.text('Please select a role'), findsOneWidget);
       expect(find.text('Please enter a password'), findsOneWidget);
       expect(find.text('Please confirm your password'), findsOneWidget);
+      expect(find.text('Please select a role'), findsNothing);
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    });
+
+    testWidgets('verifies form has all required fields and no role selection dropdown', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildApp(const RegisterScreen()));
+
+      expect(find.widgetWithText(TextFormField, 'Full Name'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Email Address'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Password'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Confirm Password'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Create Account'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Login'), findsOneWidget);
+
+      // Verify no role dropdown or role selection UI exists
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      expect(find.text('Role'), findsNothing);
+      expect(find.text('Select your role'), findsNothing);
     });
 
     testWidgets('validates password mismatch', (WidgetTester tester) async {
@@ -255,7 +371,7 @@ void main() {
       expect(find.text('Passwords do not match'), findsOneWidget);
     });
 
-    testWidgets('registers user and navigates to DashboardScreen when valid', (WidgetTester tester) async {
+    testWidgets('registers user without role selection and navigates to DashboardScreen', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -270,15 +386,6 @@ void main() {
       await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'jane@theatre.org');
       await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'secret123');
       await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'secret123');
-
-      // Select role from dropdown
-      final dropdown = find.byType(DropdownButtonFormField<String>);
-      await tester.ensureVisible(dropdown);
-      await tester.tap(dropdown);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Cast Member').last);
-      await tester.pumpAndSettle();
 
       final createButton = find.widgetWithText(FilledButton, 'Create Account');
       await tester.ensureVisible(createButton);
@@ -307,14 +414,6 @@ void main() {
       await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'jane@theatre.org');
       await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'secret123');
       await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'secret123');
-
-      final dropdown = find.byType(DropdownButtonFormField<String>);
-      await tester.ensureVisible(dropdown);
-      await tester.tap(dropdown);
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Cast Member').last);
-      await tester.pumpAndSettle();
 
       final createButton = find.widgetWithText(FilledButton, 'Create Account');
       await tester.ensureVisible(createButton);

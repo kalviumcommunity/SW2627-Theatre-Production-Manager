@@ -1,47 +1,69 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function hasUserProfile() {
+      return isAuthenticated()
+        && exists(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        );
     }
 
     function isDirector() {
-      return isAuthenticated() && 
-        (getUserData().role == 'Director' || !exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+      return hasUserProfile()
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.role == 'Director';
     }
 
-    // User profiles collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      // Only allow users to read their own profile, protecting user emails from exposure.
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // Public registration may create only a Cast Member profile for the caller's UID.
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'Cast Member'
+        && request.resource.data.name is string
+        && request.resource.data.email is string;
+
+      // Users may update their own profile, but cannot change their role.
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role
+        && request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['name', 'email'])
+        && request.resource.data.name is string
+        && request.resource.data.email is string;
+
+      // Profile deletion is not available to ordinary clients.
+      allow delete: if false;
     }
 
-    // Productions collection
     match /productions/{productionId} {
-      // Any authenticated user (Director, Cast Member, Coordinator) can read productions
       allow read: if isAuthenticated();
 
-      // Creating a production requires authentication, non-empty title, and valid status
-      allow create: if isAuthenticated()
+      allow create: if isDirector()
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
-        && request.resource.data.status in ['Planning', 'In Rehearsal', 'Completed'];
+        && request.resource.data.status
+          in ['Planning', 'In Rehearsal', 'Completed'];
 
-      // Updating a production requires authentication, non-empty title, and valid status
-      allow update: if isAuthenticated()
+      allow update: if isDirector()
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
-        && request.resource.data.status in ['Planning', 'In Rehearsal', 'Completed'];
+        && request.resource.data.status
+          in ['Planning', 'In Rehearsal', 'Completed'];
 
-      // Deleting a production requires authentication
-      allow delete: if isAuthenticated();
+      allow delete: if isDirector();
     }
   }
 }
