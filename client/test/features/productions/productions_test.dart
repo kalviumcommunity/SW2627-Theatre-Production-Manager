@@ -310,13 +310,6 @@ void main() {
 
   group('AddProductionScreen Tests', () {
     testWidgets('shows validation error when submitting with empty title', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -324,8 +317,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pump();
 
@@ -333,13 +325,6 @@ void main() {
     });
 
     testWidgets('validates end date cannot be earlier than start date', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -357,8 +342,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pump();
 
@@ -367,13 +351,6 @@ void main() {
     });
 
     testWidgets('surfaces error SnackBar when creation fails', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final fakeService = FakeProductionService()..shouldThrowOnCreate = true;
 
       await tester.pumpWidget(
@@ -381,11 +358,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final titleField = find.byKey(const Key('production_title_input'));
+      final titleField = find.widgetWithText(TextFormField, 'Production Title *');
       await tester.enterText(titleField, 'Hamlet');
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pump();
 
@@ -393,13 +369,6 @@ void main() {
     });
 
     testWidgets('successfully creates production with valid data', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final fakeService = FakeProductionService();
 
       await tester.pumpWidget(
@@ -407,17 +376,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final titleField = find.byKey(const Key('production_title_input'));
+      final titleField = find.widgetWithText(TextFormField, 'Production Title *');
       await tester.enterText(titleField, 'Hamlet');
 
-      final descField = find.byKey(const Key('production_description_input'));
+      final descField = find.widgetWithText(TextFormField, 'Description & Synopsis');
       await tester.enterText(descField, 'Prince of Denmark tragedy');
 
-      final directorField = find.byKey(const Key('production_director_input'));
+      final directorField = find.widgetWithText(TextFormField, 'Director (Optional)');
       await tester.enterText(directorField, 'Kenneth Branagh');
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
@@ -430,13 +398,6 @@ void main() {
     });
 
     testWidgets('successfully updates existing production in edit mode', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final existing = Production(
         id: 'prod-edit-1',
         title: 'Original Title',
@@ -456,11 +417,10 @@ void main() {
 
       expect(find.text('Edit Production'), findsOneWidget);
 
-      final titleField = find.byKey(const Key('production_title_input'));
+      final titleField = find.widgetWithText(TextFormField, 'Production Title *');
       await tester.enterText(titleField, 'Updated Title');
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
@@ -530,24 +490,18 @@ void main() {
 
       await tester.pumpWidget(
         buildApp(
-          Builder(
-            builder: (context) => ElevatedButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ProductionDetailsScreen(production: prod),
-                ),
-              ),
-              child: const Text('Open Details'),
+          Navigator(
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              builder: (context) => ProductionDetailsScreen(production: prod),
             ),
           ),
         ),
       );
-      await tester.tap(find.text('Open Details'));
       await tester.pumpAndSettle();
 
       expect(find.text('Twelfth Night'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Back to Productions'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Back to Productions List'));
       await tester.pumpAndSettle();
 
       expect(find.text('Twelfth Night'), findsNothing);
@@ -556,13 +510,6 @@ void main() {
 
   group('Production End-to-End Flow Tests', () {
     testWidgets('full lifecycle: create -> list -> details -> edit -> delete', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1000, 1400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
-
       final fakeService = FakeProductionService(initialProductions: []);
 
       // 1. Initial state: verify empty state is displayed
@@ -586,8 +533,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('production_description_input')), 'Tragedy of Elsinore');
       await tester.enterText(find.byKey(const Key('production_director_input')), 'Kenneth Branagh');
 
-      final saveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(saveButton);
+      final saveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
@@ -614,8 +560,7 @@ void main() {
       expect(find.text('Edit Production'), findsOneWidget);
 
       await tester.enterText(find.byKey(const Key('production_title_input')), 'Hamlet (Revised)');
-      final editSaveButton = find.byKey(const Key('save_production_button'));
-      await tester.ensureVisible(editSaveButton);
+      final editSaveButton = find.widgetWithText(FilledButton, 'Save Production');
       await tester.tap(editSaveButton);
       await tester.pumpAndSettle();
 
