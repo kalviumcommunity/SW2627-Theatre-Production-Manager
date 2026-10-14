@@ -4,7 +4,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
 import 'package:client/features/auth/screens/register_screen.dart';
 import 'package:client/features/dashboard/screens/dashboard_screen.dart';
+import 'package:client/features/productions/screens/productions_screen.dart';
+import 'package:client/features/productions/services/production_service.dart';
+import 'package:client/features/productions/models/production_model.dart';
 import 'package:client/services/auth_service.dart';
+
+class _FakeProductionService extends ProductionService {
+  final List<Production> productions;
+  _FakeProductionService({this.productions = const []});
+
+  @override
+  Stream<List<Production>> streamProductions() => Stream.value(productions);
+
+  @override
+  Future<List<Production>> getProductions() async => productions;
+}
 
 class FakeAuthService extends AuthService {
   bool loginCalled = false;
@@ -367,11 +381,11 @@ void main() {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
 
-      // Tap on Total Productions metric card
-      await tester.tap(find.text('Total Productions'));
+      // Tap on Auditions metric card
+      await tester.tap(find.text('Auditions'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Productions Module'), findsOneWidget);
+      expect(find.text('Auditions Module'), findsOneWidget);
       expect(find.text('COMING SOON'), findsOneWidget);
 
       // Tap Back to Dashboard
@@ -380,6 +394,22 @@ void main() {
 
       expect(find.text('Total Productions'), findsOneWidget);
       expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
+    });
+
+    testWidgets('navigates to Productions module when Total Productions is tapped', (WidgetTester tester) async {
+      final fakeAuth = FakeAuthService();
+      final fakeProductions = _FakeProductionService(productions: const []);
+      await tester.pumpWidget(buildApp(DashboardScreen(
+        authService: fakeAuth,
+        productionService: fakeProductions,
+      )));
+
+      // Tap on Total Productions metric card
+      await tester.tap(find.text('Total Productions'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductionsScreen), findsOneWidget);
+      expect(find.text('Productions Catalog'), findsOneWidget);
     });
 
     testWidgets('calls logout and navigates to LoginScreen on logout button tap', (WidgetTester tester) async {

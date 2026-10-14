@@ -20,7 +20,8 @@ class ProductionsScreen extends StatefulWidget {
 }
 
 class _ProductionsScreenState extends State<ProductionsScreen> {
-  late final ProductionService _service;
+  late ProductionService _service;
+  late Stream<List<Production>> _productionsStream;
   String _selectedStatusFilter = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -29,6 +30,22 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
   void initState() {
     super.initState();
     _service = widget.productionService ?? ProductionService();
+    _productionsStream = _service.streamProductions();
+  }
+
+  @override
+  void didUpdateWidget(ProductionsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.productionService != oldWidget.productionService) {
+      _service = widget.productionService ?? ProductionService();
+      _productionsStream = _service.streamProductions();
+    }
+  }
+
+  void _refreshStream() {
+    setState(() {
+      _productionsStream = _service.streamProductions();
+    });
   }
 
   @override
@@ -47,12 +64,12 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     );
 
     if (result != null && mounted) {
-      setState(() {});
+      _refreshStream();
     }
   }
 
   Future<void> _navigateToDetails(Production production) async {
-    final deleted = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => ProductionDetailsScreen(
           production: production,
@@ -61,8 +78,8 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
       ),
     );
 
-    if (deleted == true && mounted) {
-      setState(() {});
+    if (mounted) {
+      _refreshStream();
     }
   }
 
@@ -70,7 +87,8 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     try {
       await _service.deleteProduction(prod.id);
       if (!mounted) return;
-      setState(() {});
+      _refreshStream();
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Deleted "${prod.title}"'),
@@ -79,6 +97,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to delete "${prod.title}": $e'),
@@ -112,7 +131,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     final theme = Theme.of(context);
 
     final content = StreamBuilder<List<Production>>(
-      stream: _service.streamProductions(),
+      stream: _productionsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return const Center(
@@ -143,7 +162,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
-                    onPressed: () => setState(() {}),
+                    onPressed: _refreshStream,
                     icon: const Icon(Icons.refresh, size: 18),
                     label: const Text('Try Again'),
                   ),
@@ -158,7 +177,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
 
         return RefreshIndicator(
           onRefresh: () async {
-            setState(() {});
+            _refreshStream();
           },
           child: CustomScrollView(
             slivers: [

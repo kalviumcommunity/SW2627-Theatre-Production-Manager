@@ -159,6 +159,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
 
       if (!mounted) return;
 
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -177,6 +178,7 @@ class _AddProductionScreenState extends State<AddProductionScreen> {
       setState(() {
         _isSaving = false;
       });
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
