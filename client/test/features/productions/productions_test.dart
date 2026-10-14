@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:client/features/productions/models/production_model.dart';
@@ -18,6 +19,9 @@ class FakeProductionService extends ProductionService {
   int updateCalls = 0;
   int deleteCalls = 0;
 
+  final StreamController<List<Production>> _controller =
+      StreamController<List<Production>>.broadcast();
+
   FakeProductionService({List<Production>? initialProductions})
       : customProductions = initialProductions != null
             ? List.from(initialProductions)
@@ -25,8 +29,9 @@ class FakeProductionService extends ProductionService {
         super();
 
   @override
-  Stream<List<Production>> streamProductions() {
-    return Stream.value(List.unmodifiable(customProductions));
+  Stream<List<Production>> streamProductions() async* {
+    yield List.unmodifiable(customProductions);
+    yield* _controller.stream;
   }
 
   @override
@@ -44,6 +49,7 @@ class FakeProductionService extends ProductionService {
       id: 'test-id-${customProductions.length + 1}',
     );
     customProductions.insert(0, created);
+    _controller.add(List.unmodifiable(customProductions));
     return created;
   }
 
@@ -56,6 +62,7 @@ class FakeProductionService extends ProductionService {
     final index = customProductions.indexWhere((p) => p.id == production.id);
     if (index != -1) {
       customProductions[index] = production;
+      _controller.add(List.unmodifiable(customProductions));
     }
   }
 
@@ -66,6 +73,12 @@ class FakeProductionService extends ProductionService {
       throw Exception('Firestore delete failed');
     }
     customProductions.removeWhere((p) => p.id == id);
+    _controller.add(List.unmodifiable(customProductions));
+  }
+
+  @override
+  void dispose() {
+    _controller.close();
   }
 }
 
@@ -538,6 +551,95 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Twelfth Night'), findsNothing);
+    });
+  });
+
+  group('Production End-to-End Flow Tests', () {
+    testWidgets('full lifecycle: create -> list -> details -> edit -> delete', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final fakeService = FakeProductionService(initialProductions: []);
+
+      // 1. Initial state: verify empty state is displayed
+      await tester.pumpWidget(
+        buildApp(ProductionsScreen(productionService: fakeService)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No Productions Yet'), findsOneWidget);
+      expect(find.byType(ProductionCard), findsNothing);
+
+      // 2. Add Production: open add form and fill details
+      final addFab = find.widgetWithText(FloatingActionButton, 'Add Production');
+      await tester.tap(addFab);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AddProductionScreen), findsOneWidget);
+      expect(find.text('New Theatre Production'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('production_title_input')), 'Hamlet');
+      await tester.enterText(find.byKey(const Key('production_description_input')), 'Tragedy of Elsinore');
+      await tester.enterText(find.byKey(const Key('production_director_input')), 'Kenneth Branagh');
+
+      final saveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(saveButton);
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      // 3. Confirm Hamlet appears in productions list
+      expect(find.byType(ProductionsScreen), findsOneWidget);
+      expect(find.text('Hamlet'), findsOneWidget);
+      expect(find.text('Dir: Kenneth Branagh'), findsOneWidget);
+      expect(find.byType(ProductionCard), findsOneWidget);
+
+      // 4. Open its details
+      await tester.tap(find.text('Hamlet'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductionDetailsScreen), findsOneWidget);
+      expect(find.text('Hamlet'), findsOneWidget);
+      expect(find.text('Tragedy of Elsinore'), findsOneWidget);
+      expect(find.text('Directed by Kenneth Branagh'), findsOneWidget);
+
+      // 5. Edit it
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AddProductionScreen), findsOneWidget);
+      expect(find.text('Edit Production'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('production_title_input')), 'Hamlet (Revised)');
+      final editSaveButton = find.byKey(const Key('save_production_button'));
+      await tester.ensureVisible(editSaveButton);
+      await tester.tap(editSaveButton);
+      await tester.pumpAndSettle();
+
+      // Verify details updated
+      expect(find.byType(ProductionDetailsScreen), findsOneWidget);
+      expect(find.text('Hamlet (Revised)'), findsOneWidget);
+
+      // Back to list and verify updated title appears in list
+      await tester.tap(find.byTooltip('Back to Productions'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductionsScreen), findsOneWidget);
+      expect(find.text('Hamlet (Revised)'), findsOneWidget);
+
+      // 6. Delete it and confirm it disappears
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No Productions Yet'), findsOneWidget);
+      expect(find.byType(ProductionCard), findsNothing);
+      expect(find.text('Deleted "Hamlet (Revised)"'), findsOneWidget);
     });
   });
 }

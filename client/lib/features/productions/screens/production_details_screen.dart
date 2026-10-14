@@ -58,6 +58,7 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
       try {
         await _service.deleteProduction(_production.id);
         if (!mounted) return;
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Deleted "${_production.title}"'),
@@ -70,6 +71,7 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
         setState(() {
           _isDeleting = false;
         });
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: $e'),

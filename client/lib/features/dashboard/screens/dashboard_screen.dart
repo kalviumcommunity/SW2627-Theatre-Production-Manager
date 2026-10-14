@@ -7,17 +7,21 @@ import 'package:client/features/dashboard/widgets/dashboard_navigation.dart';
 import 'package:client/features/dashboard/widgets/metric_card.dart';
 import 'package:client/features/dashboard/widgets/role_badge.dart';
 import 'package:client/features/dashboard/widgets/upcoming_rehearsals_card.dart';
+import 'package:client/features/productions/screens/productions_screen.dart';
+import 'package:client/features/productions/services/production_service.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final AuthService? authService;
   final UserService? userService;
+  final ProductionService? productionService;
 
   const DashboardScreen({
     super.key,
     this.authService,
     this.userService,
+    this.productionService,
   });
 
   @override
@@ -168,12 +172,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: _selectedNavIndex == 0
                       ? _buildDashboardView(theme)
-                      : ComingSoonView(
-                          title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
-                          description: kDashboardNavItems[_selectedNavIndex].description,
-                          icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
-                          onBackToDashboard: () => _onNavigateTo(0),
-                        ),
+                      : _selectedNavIndex == 1
+                          ? ProductionsScreen(
+                              showAppBar: false,
+                              productionService: widget.productionService,
+                            )
+                          : ComingSoonView(
+                              title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
+                              description: kDashboardNavItems[_selectedNavIndex].description,
+                              icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
+                              onBackToDashboard: () => _onNavigateTo(0),
+                            ),
                 ),
               ],
             ),
