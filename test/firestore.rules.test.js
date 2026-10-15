@@ -185,6 +185,15 @@ describe('Firestore Security Rules', function () {
       );
     });
 
+    it('allows Director to update only the status with valid data', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('productions').doc('prod-existing').update({
+          status: 'Completed',
+        })
+      );
+    });
+
     it('allows Director to delete a production', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
       await assertSucceeds(db.collection('productions').doc('prod-existing').delete());
@@ -265,6 +274,52 @@ describe('Firestore Security Rules', function () {
           role: 'Cast Member',
         })
       );
+    });
+
+    it('denies public registration with missing or non-string name or email', async () => {
+      const newUid1 = 'new-user-missing-fields';
+      const db1 = testEnv.authenticatedContext(newUid1).firestore();
+      await assertFails(
+        db1.collection('users').doc(newUid1).set({
+          role: 'Cast Member',
+          email: 'test@theatre.org',
+        })
+      );
+      const newUid2 = 'new-user-bad-types';
+      const db2 = testEnv.authenticatedContext(newUid2).firestore();
+      await assertFails(
+        db2.collection('users').doc(newUid2).set({
+          name: 12345,
+          role: 'Cast Member',
+          email: 'test@theatre.org',
+        })
+      );
+    });
+  });
+
+  describe('6b. Authenticated users profile read access (own profile only)', () => {
+    it('allows authenticated user to read their own profile', async () => {
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(castDb.collection('users').doc(CAST_UID).get());
+
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(directorDb.collection('users').doc(DIRECTOR_UID).get());
+    });
+
+    it('denies authenticated user from reading another user\'s profile', async () => {
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(castDb.collection('users').doc(DIRECTOR_UID).get());
+
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(directorDb.collection('users').doc(CAST_UID).get());
+    });
+
+    it('denies authenticated user from listing all user profiles', async () => {
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(castDb.collection('users').get());
+
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(directorDb.collection('users').get());
     });
   });
 
@@ -409,6 +464,20 @@ describe('Firestore Security Rules', function () {
           })
         );
       }
+    });
+
+    it('denies creating production missing title or status', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('productions').doc('prod-no-title').set({
+          status: 'Planning',
+        })
+      );
+      await assertFails(
+        db.collection('productions').doc('prod-no-status').set({
+          title: 'Title Without Status',
+        })
+      );
     });
 
     it('denies updating production to empty title', async () => {
