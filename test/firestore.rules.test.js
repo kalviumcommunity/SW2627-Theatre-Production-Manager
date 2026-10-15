@@ -56,6 +56,14 @@ describe('Firestore Security Rules', function () {
         title: 'Romeo and Juliet',
         status: 'Planning',
       });
+      await db.collection('rehearsals').doc('reh-existing').set({
+        productionId: 'prod-existing',
+        venueId: 'main-stage',
+        venue: 'Main Stage',
+        startTime: new Date('2026-11-01T10:00:00Z'),
+        endTime: new Date('2026-11-01T12:00:00Z'),
+        creatorUid: DIRECTOR_UID,
+      });
     });
   });
 
@@ -501,6 +509,124 @@ describe('Firestore Security Rules', function () {
           status: 'Unknown',
         })
       );
+    });
+  });
+
+  describe('10. Rehearsal schedules access control and validation', () => {
+    it('denies unauthenticated read and write access to rehearsals', async () => {
+      const db = testEnv.unauthenticatedContext().firestore();
+      await assertFails(db.collection('rehearsals').doc('reh-existing').get());
+      await assertFails(db.collection('rehearsals').get());
+      await assertFails(
+        db.collection('rehearsals').doc('reh-anon').set({
+          productionId: 'prod-existing',
+          venueId: 'main-stage',
+          startTime: new Date('2026-11-02T10:00:00Z'),
+          endTime: new Date('2026-11-02T12:00:00Z'),
+        })
+      );
+    });
+
+    it('allows authenticated users to read rehearsals', async () => {
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(castDb.collection('rehearsals').doc('reh-existing').get());
+      await assertSucceeds(castDb.collection('rehearsals').get());
+
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(directorDb.collection('rehearsals').doc('reh-existing').get());
+      await assertSucceeds(directorDb.collection('rehearsals').get());
+    });
+
+    it('denies Cast Member from creating, updating, or deleting rehearsals', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('rehearsals').doc('reh-cast').set({
+          productionId: 'prod-existing',
+          venueId: 'main-stage',
+          startTime: new Date('2026-11-02T10:00:00Z'),
+          endTime: new Date('2026-11-02T12:00:00Z'),
+        })
+      );
+      await assertFails(
+        db.collection('rehearsals').doc('reh-existing').update({
+          venueId: 'stage-2',
+        })
+      );
+      await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
+    });
+
+    it('allows Director to create, update, and delete rehearsals with valid data', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('rehearsals').doc('reh-valid').set({
+          productionId: 'prod-existing',
+          venueId: 'stage-main',
+          startTime: new Date('2026-11-05T14:00:00Z'),
+          endTime: new Date('2026-11-05T17:00:00Z'),
+        })
+      );
+      await assertSucceeds(
+        db.collection('rehearsals').doc('reh-existing').update({
+          endTime: new Date('2026-11-01T13:00:00Z'),
+        })
+      );
+      await assertSucceeds(db.collection('rehearsals').doc('reh-existing').delete());
+    });
+
+    it('denies rehearsal creation with invalid time range (endTime <= startTime)', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      // endTime before startTime
+      await assertFails(
+        db.collection('rehearsals').doc('reh-inv-time').set({
+          productionId: 'prod-existing',
+          venueId: 'stage-main',
+          startTime: new Date('2026-11-05T17:00:00Z'),
+          endTime: new Date('2026-11-05T14:00:00Z'),
+        })
+      );
+      // endTime equal to startTime
+      await assertFails(
+        db.collection('rehearsals').doc('reh-zero-dur').set({
+          productionId: 'prod-existing',
+          venueId: 'stage-main',
+          startTime: new Date('2026-11-05T14:00:00Z'),
+          endTime: new Date('2026-11-05T14:00:00Z'),
+        })
+      );
+    });
+
+    it('denies rehearsal creation with missing or empty productionId or venue', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      // empty productionId
+      await assertFails(
+        db.collection('rehearsals').doc('reh-no-prod').set({
+          productionId: '',
+          venueId: 'stage-main',
+          startTime: new Date('2026-11-05T14:00:00Z'),
+          endTime: new Date('2026-11-05T17:00:00Z'),
+        })
+      );
+      // missing venue
+      await assertFails(
+        db.collection('rehearsals').doc('reh-no-venue').set({
+          productionId: 'prod-existing',
+          startTime: new Date('2026-11-05T14:00:00Z'),
+          endTime: new Date('2026-11-05T17:00:00Z'),
+        })
+      );
+    });
+
+    it('denies user without profile from managing rehearsals', async () => {
+      const db = testEnv.authenticatedContext(NO_PROFILE_UID).firestore();
+      await assertFails(
+        db.collection('rehearsals').doc('reh-no-prof').set({
+          productionId: 'prod-existing',
+          venueId: 'stage-main',
+          startTime: new Date('2026-11-05T14:00:00Z'),
+          endTime: new Date('2026-11-05T17:00:00Z'),
+        })
+      );
+      await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
     });
   });
 });
