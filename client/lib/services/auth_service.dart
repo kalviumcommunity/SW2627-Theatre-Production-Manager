@@ -17,11 +17,14 @@ class AuthService {
   User? get currentUser => firebaseAuth.currentUser;
 
   /// Registers a new user with email and password and creates a profile in Firestore.
+  ///
+  /// Public registration always assigns the 'Cast Member' role.
+  /// Any [role] argument supplied by a caller is ignored to prevent privilege escalation.
   Future<UserCredential> register({
     required String name,
     required String email,
     required String password,
-    required String role,
+    String? role,
   }) async {
     final credential = await firebaseAuth.createUserWithEmailAndPassword(
       email: email.trim(),
@@ -34,7 +37,8 @@ class AuthService {
         uid: user.uid,
         name: name,
         email: email,
-        role: role,
+        // Public registration never grants elevated privileges.
+        role: 'Cast Member',
       );
     }
 
