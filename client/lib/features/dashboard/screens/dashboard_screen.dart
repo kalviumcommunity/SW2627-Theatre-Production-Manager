@@ -9,6 +9,8 @@ import 'package:client/features/dashboard/widgets/role_badge.dart';
 import 'package:client/features/dashboard/widgets/upcoming_rehearsals_card.dart';
 import 'package:client/features/productions/screens/productions_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
+import 'package:client/features/rehearsals/screens/rehearsals_screen.dart';
+import 'package:client/features/rehearsals/services/rehearsal_service.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
 
@@ -16,12 +18,14 @@ class DashboardScreen extends StatefulWidget {
   final AuthService? authService;
   final UserService? userService;
   final ProductionService? productionService;
+  final RehearsalService? rehearsalService;
 
   const DashboardScreen({
     super.key,
     this.authService,
     this.userService,
     this.productionService,
+    this.rehearsalService,
   });
 
   @override
@@ -55,29 +59,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _loadUserProfile() {
-    final user = _authService.currentUser;
-    if (user == null) {
-      _userName = '';
-      _userRole = 'Cast Member';
-      _userEmail = '';
-      return;
-    }
-
-    _userEmail = user.email ?? '';
-    // Fallback from auth user displayName or email prefix
-    if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
-      _userName = user.displayName!.trim();
-    } else if (user.email != null && user.email!.contains('@')) {
-      final emailPrefix = user.email!.split('@').first;
-      _userName = emailPrefix.isNotEmpty
-          ? '${emailPrefix[0].toUpperCase()}${emailPrefix.substring(1)}'
-          : 'Member';
-    } else {
-      _userName = 'Member';
-    }
-
-    // Stream profile from Firestore
     try {
+      final user = _authService.currentUser;
+      if (user == null) {
+        _userName = '';
+        _userRole = 'Cast Member';
+        _userEmail = '';
+        return;
+      }
+
+      _userEmail = user.email ?? '';
+      // Fallback from auth user displayName or email prefix
+      if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+        _userName = user.displayName!.trim();
+      } else if (user.email != null && user.email!.contains('@')) {
+        final emailPrefix = user.email!.split('@').first;
+        _userName = emailPrefix.isNotEmpty
+            ? '${emailPrefix[0].toUpperCase()}${emailPrefix.substring(1)}'
+            : 'Member';
+      } else {
+        _userName = 'Member';
+      }
+
+      // Stream profile from Firestore
       _profileSubscription = _userService.streamUserProfile(user.uid).listen(
         (data) {
           if (!mounted || data == null) return;
@@ -98,7 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
       );
     } catch (_) {
-      // Retain fallback if Firestore is unavailable
+      // Retain fallback if Firebase is unavailable
     }
   }
 
@@ -177,12 +181,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               showAppBar: false,
                               productionService: widget.productionService,
                             )
-                          : ComingSoonView(
-                              title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
-                              description: kDashboardNavItems[_selectedNavIndex].description,
-                              icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
-                              onBackToDashboard: () => _onNavigateTo(0),
-                            ),
+                          : _selectedNavIndex == 4
+                              ? RehearsalsScreen(
+                                  showAppBar: false,
+                                  rehearsalService: widget.rehearsalService,
+                                  productionService: widget.productionService,
+                                )
+                              : ComingSoonView(
+                                  title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
+                                  description: kDashboardNavItems[_selectedNavIndex].description,
+                                  icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
+                                  onBackToDashboard: () => _onNavigateTo(0),
+                                ),
                 ),
               ],
             ),
