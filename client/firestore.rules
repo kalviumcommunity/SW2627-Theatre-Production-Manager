@@ -65,5 +65,33 @@ service cloud.firestore {
 
       allow delete: if isDirector();
     }
+
+    match /rehearsals/{rehearsalId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isDirector()
+        && request.resource.data.productionId is string
+        && request.resource.data.productionId.size() > 0
+        && (
+          (request.resource.data.venueId is string && request.resource.data.venueId.size() > 0)
+          || (request.resource.data.venue is string && request.resource.data.venue.size() > 0)
+        )
+        && request.resource.data.startTime is timestamp
+        && request.resource.data.endTime is timestamp
+        && request.resource.data.endTime > request.resource.data.startTime;
+
+      allow update: if isDirector()
+        && request.resource.data.productionId is string
+        && request.resource.data.productionId.size() > 0
+        && (
+          (request.resource.data.venueId is string && request.resource.data.venueId.size() > 0)
+          || (request.resource.data.venue is string && request.resource.data.venue.size() > 0)
+        )
+        && request.resource.data.startTime is timestamp
+        && request.resource.data.endTime is timestamp
+        && request.resource.data.endTime > request.resource.data.startTime;
+
+      allow delete: if isDirector();
+    }
   }
 }
