@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../rehearsals/screens/rehearsals_screen.dart';
 import '../models/production_model.dart';
 import '../services/production_service.dart';
 import 'add_production_screen.dart';
@@ -416,8 +417,19 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           _buildActivityRow(
             icon: Icons.event_repeat_outlined,
             title: 'Rehearsals',
-            subtitle: 'Rehearsal scheduling module connects here',
+            subtitle: 'View and schedule rehearsal sessions for this production',
             theme: theme,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RehearsalsScreen(
+                    initialProductionFilter: _production.id,
+                    showAppBar: true,
+                    productionService: _service,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 10),
           _buildActivityRow(
@@ -436,13 +448,10 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
     required String title,
     required String subtitle,
     required ThemeData theme,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    final rowContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(10),
-      ),
       child: Row(
         children: [
           Icon(icon, size: 20, color: const Color(0xFF8B1E3F)),
@@ -466,8 +475,32 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
               ],
             ),
           ),
+          if (onTap != null)
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
         ],
       ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: onTap != null
+          ? Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: onTap,
+                child: rowContent,
+              ),
+            )
+          : rowContent,
     );
   }
 
