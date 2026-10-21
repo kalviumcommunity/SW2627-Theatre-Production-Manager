@@ -1,5 +1,7 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:client/services/auth_service.dart';
+
 import '../../productions/models/production_model.dart';
 import '../../productions/services/production_service.dart';
 import '../exceptions/rehearsal_exceptions.dart';
@@ -12,6 +14,7 @@ class AddRehearsalScreen extends StatefulWidget {
   final AuthService? authService;
   final Rehearsal? initialRehearsal;
   final String? initialProductionId;
+  final bool checkProductionExists;
 
   const AddRehearsalScreen({
     super.key,
@@ -20,6 +23,7 @@ class AddRehearsalScreen extends StatefulWidget {
     this.authService,
     this.initialRehearsal,
     this.initialProductionId,
+    this.checkProductionExists = true,
   });
 
   @override
@@ -68,7 +72,8 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
     _notesController = TextEditingController(text: init?.notes ?? '');
 
     final now = DateTime.now();
-    _selectedDate = init?.startTime ?? DateTime(now.year, now.month, now.day + 1);
+    _selectedDate =
+        init?.startTime ?? DateTime(now.year, now.month, now.day + 1);
     _startTime = init != null
         ? TimeOfDay(hour: init.startTime.hour, minute: init.startTime.minute)
         : const TimeOfDay(hour: 14, minute: 0);
@@ -80,14 +85,18 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
   }
 
   Future<void> _loadAvailableProductions() async {
-    if (widget.productionService == null) return;
+    // Only attempt loading if productionService was provided or in real app runtime with Firebase initialized
+    final hasInjectedService = widget.productionService != null;
+    final isFirebaseReady = Firebase.apps.isNotEmpty;
+    if (!hasInjectedService && !isFirebaseReady) return;
+
     setState(() {
       _loadingProductions = true;
     });
     try {
-      final productions = await _productionService
-          .getProductions()
-          .timeout(const Duration(seconds: 2));
+      final productions = await _productionService.getProductions().timeout(
+        const Duration(seconds: 2),
+      );
       if (mounted) {
         setState(() {
           _availableProductions = productions;
@@ -153,8 +162,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final firstDate = DateTime(now.year - 2);
-    final lastDate = DateTime(now.year + 5);
+    final minDate = DateTime(now.year - 2);
+    final maxDate = DateTime(now.year + 5);
+    final firstDate = _selectedDate.isBefore(minDate) ? _selectedDate : minDate;
+    final lastDate = _selectedDate.isAfter(maxDate) ? _selectedDate : maxDate;
 
     final picked = await showDatePicker(
       context: context,
@@ -207,8 +218,18 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
@@ -241,7 +262,8 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
       _venueConflict = null;
     });
 
-    final isEditing = widget.initialRehearsal != null &&
+    final isEditing =
+        widget.initialRehearsal != null &&
         widget.initialRehearsal!.id.isNotEmpty;
 
     final startDateTime = _calculatedStartDateTime;
@@ -280,10 +302,16 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
     try {
       final Rehearsal saved;
       if (isEditing) {
-        await _service.updateRehearsal(rehearsal, checkProductionExists: false);
+        await _service.updateRehearsal(
+          rehearsal,
+          checkProductionExists: widget.checkProductionExists,
+        );
         saved = rehearsal;
       } else {
-        saved = await _service.createRehearsal(rehearsal, checkProductionExists: false);
+        saved = await _service.createRehearsal(
+          rehearsal,
+          checkProductionExists: widget.checkProductionExists,
+        );
       }
 
       if (!mounted) return;
@@ -354,7 +382,8 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isEditing = widget.initialRehearsal != null &&
+    final isEditing =
+        widget.initialRehearsal != null &&
         widget.initialRehearsal!.id.isNotEmpty;
 
     return Scaffold(
@@ -383,7 +412,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                   // Form header card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF8B1E3F).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
@@ -401,7 +433,9 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            isEditing ? 'Edit Rehearsal Session' : 'New Rehearsal Session',
+                            isEditing
+                                ? 'Edit Rehearsal Session'
+                                : 'New Rehearsal Session',
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF8B1E3F),
@@ -483,7 +517,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                     decoration: InputDecoration(
                       labelText: 'Rehearsal Title *',
                       hintText: 'e.g. Full Run-Through, Act I Scene 2',
-                      prefixIcon: const Icon(Icons.event_note_outlined, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.event_note_outlined,
+                        size: 20,
+                      ),
                       isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -506,7 +543,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                     decoration: InputDecoration(
                       labelText: 'Production ID *',
                       hintText: 'e.g. prod-001 or select from below',
-                      prefixIcon: const Icon(Icons.theater_comedy_outlined, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.theater_comedy_outlined,
+                        size: 20,
+                      ),
                       isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -517,7 +557,9 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             )
                           : null,
@@ -562,8 +604,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                                   });
                                 },
                                 backgroundColor: isSelected
-                                    ? const Color(0xFF8B1E3F).withValues(alpha: 0.15)
-                                    : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                                    ? const Color(0xFF8B1E3F)
+                                          .withValues(alpha: 0.15)
+                                    : theme.colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.4),
                               ),
                             );
                           }),
@@ -581,7 +625,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                     decoration: InputDecoration(
                       labelText: 'Venue *',
                       hintText: 'e.g. Main Auditorium, Studio A, Black Box',
-                      prefixIcon: const Icon(Icons.location_on_outlined, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.location_on_outlined,
+                        size: 20,
+                      ),
                       isDense: true,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -631,7 +678,10 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                     const SizedBox(height: 6),
                     Container(
                       key: const Key('time_range_error'),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.red.shade50,
                         borderRadius: BorderRadius.circular(8),
@@ -639,7 +689,11 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                          Icon(
+                            Icons.error_outline,
+                            size: 16,
+                            color: Colors.red.shade700,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -677,46 +731,60 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                   const SizedBox(height: 14),
 
                   // Action Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton(
+                          onPressed: _isSaving
+                              ? null
+                              : () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton.icon(
+                          key: const Key('save_rehearsal_button'),
+                          onPressed: _isSaving ? null : _onSave,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.check, size: 16),
+                          label: Text(
+                            _isSaving
+                                ? 'Saving Rehearsal...'
+                                : 'Save Rehearsal',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF8B1E3F),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         ),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        key: const Key('save_rehearsal_button'),
-                        onPressed: _isSaving ? null : _onSave,
-                        icon: _isSaving
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.check, size: 16),
-                        label: Text(
-                          _isSaving ? 'Saving Rehearsal...' : 'Save Rehearsal',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B1E3F),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -734,9 +802,7 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-          ),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -787,18 +853,12 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-          ),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: const Color(0xFF8B1E3F),
-            ),
+            Icon(icon, size: 18, color: const Color(0xFF8B1E3F)),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
