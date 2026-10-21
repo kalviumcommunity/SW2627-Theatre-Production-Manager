@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:client/features/dashboard/screens/dashboard_screen.dart';
 import 'package:client/features/productions/models/production_model.dart';
+import 'package:client/features/productions/screens/production_details_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
 import 'package:client/features/rehearsals/exceptions/rehearsal_exceptions.dart';
 import 'package:client/features/rehearsals/models/rehearsal_model.dart';
@@ -43,10 +45,10 @@ class FakeRehearsalService extends RehearsalService {
       StreamController<List<Rehearsal>>.broadcast();
 
   FakeRehearsalService({List<Rehearsal>? initialRehearsals})
-      : customRehearsals = initialRehearsals != null
-            ? List.from(initialRehearsals)
-            : [],
-        super();
+    : customRehearsals = initialRehearsals != null
+          ? List.from(initialRehearsals)
+          : [],
+      super();
 
   @override
   Stream<List<Rehearsal>> streamRehearsals({
@@ -56,9 +58,14 @@ class FakeRehearsalService extends RehearsalService {
     if (shouldThrowStreamError) {
       throw Exception('Firestore stream connection failure');
     }
-    yield List.unmodifiable(_filter(customRehearsals, productionId: productionId, venueId: venueId));
-    yield* _controller.stream.map((list) =>
-        List.unmodifiable(_filter(list, productionId: productionId, venueId: venueId)));
+    yield List.unmodifiable(
+      _filter(customRehearsals, productionId: productionId, venueId: venueId),
+    );
+    yield* _controller.stream.map(
+      (list) => List.unmodifiable(
+        _filter(list, productionId: productionId, venueId: venueId),
+      ),
+    );
   }
 
   @override
@@ -66,7 +73,11 @@ class FakeRehearsalService extends RehearsalService {
     String? productionId,
     String? venueId,
   }) async {
-    return _filter(customRehearsals, productionId: productionId, venueId: venueId);
+    return _filter(
+      customRehearsals,
+      productionId: productionId,
+      venueId: venueId,
+    );
   }
 
   @override
@@ -87,7 +98,8 @@ class FakeRehearsalService extends RehearsalService {
     }
 
     if (simulateVenueConflictOnCreate) {
-      final conflict = conflictFixture ??
+      final conflict =
+          conflictFixture ??
           Rehearsal(
             id: 'conflict-1',
             productionId: 'prod-conflict',
@@ -99,7 +111,8 @@ class FakeRehearsalService extends RehearsalService {
             creatorUid: 'other-user',
           );
       throw VenueConflictException(
-        message: 'Venue "${rehearsal.venue}" is already booked for "${conflict.title}" '
+        message:
+            'Venue "${rehearsal.venue}" is already booked for "${conflict.title}" '
             'from ${conflict.startTime} to ${conflict.endTime}.',
         conflictingRehearsal: conflict,
         requestedRehearsal: rehearsal,
@@ -127,7 +140,8 @@ class FakeRehearsalService extends RehearsalService {
     }
 
     if (simulateVenueConflictOnUpdate) {
-      final conflict = conflictFixture ??
+      final conflict =
+          conflictFixture ??
           Rehearsal(
             id: 'conflict-2',
             productionId: 'prod-conflict',
@@ -139,7 +153,8 @@ class FakeRehearsalService extends RehearsalService {
             creatorUid: 'other-user',
           );
       throw VenueConflictException(
-        message: 'Venue "${rehearsal.venue}" is already booked for "${conflict.title}".',
+        message:
+            'Venue "${rehearsal.venue}" is already booked for "${conflict.title}".',
         conflictingRehearsal: conflict,
         requestedRehearsal: rehearsal,
       );
@@ -184,22 +199,17 @@ class FakeProductionServiceForRehearsals extends ProductionService {
   final List<Production> productions;
 
   FakeProductionServiceForRehearsals({List<Production>? initialProductions})
-      : productions = initialProductions ?? [
-          Production(
-            id: 'prod-1',
-            title: 'Hamlet',
-            status: 'In Rehearsal',
-          ),
-          Production(
-            id: 'prod-2',
-            title: 'The Crucible',
-            status: 'Planning',
-          ),
-        ],
-        super();
+    : productions =
+          initialProductions ??
+          [
+            Production(id: 'prod-1', title: 'Hamlet', status: 'In Rehearsal'),
+            Production(id: 'prod-2', title: 'The Crucible', status: 'Planning'),
+          ],
+      super();
 
   @override
-  Future<List<Production>> getProductions() async => List.unmodifiable(productions);
+  Future<List<Production>> getProductions() async =>
+      List.unmodifiable(productions);
 
   @override
   Stream<List<Production>> streamProductions() async* {
@@ -212,16 +222,16 @@ void main() {
     return MaterialApp(
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF8B1E3F),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF8B1E3F)),
       ),
       home: home,
     );
   }
 
   group('RehearsalCard Tests', () {
-    testWidgets('renders title, venue badge, date, time window, and duration', (WidgetTester tester) async {
+    testWidgets('renders title, venue badge, date, time window, and duration', (
+      WidgetTester tester,
+    ) async {
       final rehearsal = Rehearsal(
         id: 'reh-1',
         productionId: 'prod-hamlet',
@@ -258,7 +268,10 @@ void main() {
       expect(find.textContaining('14:00 – 16:30'), findsOneWidget);
       expect(find.text('2h 30m'), findsOneWidget);
       expect(find.text('Production: prod-hamlet'), findsOneWidget);
-      expect(find.text('Act I and Act II run with stage props'), findsOneWidget);
+      expect(
+        find.text('Act I and Act II run with stage props'),
+        findsOneWidget,
+      );
 
       // Tap card
       await tester.tap(find.text('Full Cast Run-Through'));
@@ -284,7 +297,9 @@ void main() {
   });
 
   group('RehearsalsScreen Tests', () {
-    testWidgets('renders empty state when no rehearsals exist', (WidgetTester tester) async {
+    testWidgets('renders empty state when no rehearsals exist', (
+      WidgetTester tester,
+    ) async {
       final fakeService = FakeRehearsalService(initialRehearsals: []);
 
       await tester.pumpWidget(
@@ -294,10 +309,15 @@ void main() {
 
       expect(find.text('No Rehearsals Scheduled'), findsOneWidget);
       expect(
-        find.text('Schedule your first rehearsal run-through to coordinate call times and stage spaces.'),
+        find.text(
+          'Schedule your first rehearsal run-through to coordinate call times and stage spaces.',
+        ),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('empty_schedule_rehearsal_button')), findsOneWidget);
+      expect(
+        find.byKey(const Key('empty_schedule_rehearsal_button')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders list of rehearsal cards', (WidgetTester tester) async {
@@ -335,7 +355,9 @@ void main() {
       expect(find.text('Total scheduled: 2'), findsOneWidget);
     });
 
-    testWidgets('filters rehearsals by search query', (WidgetTester tester) async {
+    testWidgets('filters rehearsals by search query', (
+      WidgetTester tester,
+    ) async {
       final rehearsals = [
         Rehearsal(
           id: '1',
@@ -379,62 +401,73 @@ void main() {
       expect(find.text('No Matching Rehearsals'), findsOneWidget);
     });
 
-    testWidgets('navigates to AddRehearsalScreen when Schedule Rehearsal is tapped', (WidgetTester tester) async {
-      final fakeService = FakeRehearsalService(initialRehearsals: []);
+    testWidgets(
+      'navigates to AddRehearsalScreen when Schedule Rehearsal is tapped',
+      (WidgetTester tester) async {
+        final fakeService = FakeRehearsalService(initialRehearsals: []);
 
-      await tester.pumpWidget(
-        buildApp(RehearsalsScreen(rehearsalService: fakeService)),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildApp(RehearsalsScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
 
-      final fab = find.byKey(const Key('add_rehearsal_fab'));
-      await tester.tap(fab);
-      await tester.pumpAndSettle();
+        final fab = find.byKey(const Key('add_rehearsal_fab'));
+        await tester.tap(fab);
+        await tester.pumpAndSettle();
 
-      expect(find.byType(AddRehearsalScreen), findsOneWidget);
-    });
+        expect(find.byType(AddRehearsalScreen), findsOneWidget);
+      },
+    );
 
-    testWidgets('surfaces error SnackBar when delete fails from card popup menu', (WidgetTester tester) async {
-      final fakeService = FakeRehearsalService(
-        initialRehearsals: [
-          Rehearsal(
-            id: '1',
-            productionId: 'prod-1',
-            title: 'Dress Rehearsal',
-            venueId: 'stage-1',
-            venueName: 'Main Stage',
-            startTime: DateTime(2026, 10, 25, 18, 0),
-            endTime: DateTime(2026, 10, 25, 21, 0),
-            creatorUid: 'director',
-          ),
-        ],
-      )..shouldThrowOnDelete = true;
+    testWidgets(
+      'surfaces error SnackBar when delete fails from card popup menu',
+      (WidgetTester tester) async {
+        final fakeService = FakeRehearsalService(
+          initialRehearsals: [
+            Rehearsal(
+              id: '1',
+              productionId: 'prod-1',
+              title: 'Dress Rehearsal',
+              venueId: 'stage-1',
+              venueName: 'Main Stage',
+              startTime: DateTime(2026, 10, 25, 18, 0),
+              endTime: DateTime(2026, 10, 25, 21, 0),
+              creatorUid: 'director',
+            ),
+          ],
+        )..shouldThrowOnDelete = true;
 
-      await tester.pumpWidget(
-        buildApp(RehearsalsScreen(rehearsalService: fakeService)),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildApp(RehearsalsScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
 
-      // Open card popup menu
-      await tester.tap(find.byIcon(Icons.more_vert));
-      await tester.pumpAndSettle();
+        // Open card popup menu
+        await tester.tap(find.byIcon(Icons.more_vert));
+        await tester.pumpAndSettle();
 
-      // Tap delete in popup menu
-      await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
+        // Tap delete in popup menu
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
 
-      // Confirm in dialog
-      expect(find.text('Delete Rehearsal'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
-      await tester.pumpAndSettle();
+        // Confirm in dialog
+        expect(find.text('Delete Rehearsal'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+        await tester.pumpAndSettle();
 
-      expect(find.textContaining('Failed to delete "Dress Rehearsal"'), findsOneWidget);
-      expect(fakeService.customRehearsals.length, 1);
-    });
+        expect(
+          find.textContaining('Failed to delete "Dress Rehearsal"'),
+          findsOneWidget,
+        );
+        expect(fakeService.customRehearsals.length, 1);
+      },
+    );
   });
 
   group('AddRehearsalScreen Tests', () {
-    testWidgets('shows validation error when submitting with empty title', (WidgetTester tester) async {
+    testWidgets('shows validation error when submitting with empty title', (
+      WidgetTester tester,
+    ) async {
       final fakeService = FakeRehearsalService();
 
       await tester.pumpWidget(
@@ -443,7 +476,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Clear title
-      final titleField = find.widgetWithText(TextFormField, 'Rehearsal Title *');
+      final titleField = find.widgetWithText(
+        TextFormField,
+        'Rehearsal Title *',
+      );
       await tester.enterText(titleField, '');
 
       // Fill production and venue
@@ -461,10 +497,15 @@ void main() {
       await tester.tap(saveButton);
       await tester.pump();
 
-      expect(find.text('Rehearsal title is required and cannot be empty.'), findsOneWidget);
+      expect(
+        find.text('Rehearsal title is required and cannot be empty.'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('shows validation error when production ID or venue is empty', (WidgetTester tester) async {
+    testWidgets('shows validation error when production ID or venue is empty', (
+      WidgetTester tester,
+    ) async {
       final fakeService = FakeRehearsalService();
 
       await tester.pumpWidget(
@@ -481,7 +522,9 @@ void main() {
       expect(find.text('Venue is required.'), findsOneWidget);
     });
 
-    testWidgets('validates end time cannot be earlier than start time', (WidgetTester tester) async {
+    testWidgets('validates end time cannot be earlier than start time', (
+      WidgetTester tester,
+    ) async {
       final fakeService = FakeRehearsalService();
 
       await tester.pumpWidget(
@@ -509,46 +552,54 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('End time must be after start time (rehearsal duration cannot be zero or negative).'),
+        find.text(
+          'End time must be after start time (rehearsal duration cannot be zero or negative).',
+        ),
         findsOneWidget,
       );
       expect(fakeService.customRehearsals.isEmpty, isTrue);
     });
 
-    testWidgets('surfaces VenueConflictException with prominent alert banner and SnackBar', (WidgetTester tester) async {
-      final fakeService = FakeRehearsalService()..simulateVenueConflictOnCreate = true;
+    testWidgets(
+      'surfaces VenueConflictException with prominent alert banner and SnackBar',
+      (WidgetTester tester) async {
+        final fakeService = FakeRehearsalService()
+          ..simulateVenueConflictOnCreate = true;
 
-      await tester.pumpWidget(
-        buildApp(AddRehearsalScreen(rehearsalService: fakeService)),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildApp(AddRehearsalScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Rehearsal Title *'),
-        'Afternoon Run',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Production ID *'),
-        'prod-conflict',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Venue *'),
-        'Auditorium',
-      );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Rehearsal Title *'),
+          'Afternoon Run',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Production ID *'),
+          'prod-conflict',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Venue *'),
+          'Auditorium',
+        );
 
-      final saveButton = find.byKey(const Key('save_rehearsal_button'));
-      await tester.ensureVisible(saveButton);
-      await tester.tap(saveButton);
-      await tester.pumpAndSettle();
+        final saveButton = find.byKey(const Key('save_rehearsal_button'));
+        await tester.ensureVisible(saveButton);
+        await tester.tap(saveButton);
+        await tester.pumpAndSettle();
 
-      // Expect prominent conflict alert banner
-      expect(find.byKey(const Key('venue_conflict_alert')), findsOneWidget);
-      expect(find.text('Venue Conflict Detected'), findsOneWidget);
-      expect(find.textContaining('already booked'), findsWidgets);
-      expect(fakeService.customRehearsals.isEmpty, isTrue);
-    });
+        // Expect prominent conflict alert banner
+        expect(find.byKey(const Key('venue_conflict_alert')), findsOneWidget);
+        expect(find.text('Venue Conflict Detected'), findsOneWidget);
+        expect(find.textContaining('already booked'), findsWidgets);
+        expect(fakeService.customRehearsals.isEmpty, isTrue);
+      },
+    );
 
-    testWidgets('successfully creates rehearsal with valid data', (WidgetTester tester) async {
+    testWidgets('successfully creates rehearsal with valid data', (
+      WidgetTester tester,
+    ) async {
       final fakeService = FakeRehearsalService();
 
       await tester.pumpWidget(
@@ -588,7 +639,9 @@ void main() {
       expect(fakeService.updateCalls, 0);
     });
 
-    testWidgets('successfully updates existing rehearsal in edit mode', (WidgetTester tester) async {
+    testWidgets('successfully updates existing rehearsal in edit mode', (
+      WidgetTester tester,
+    ) async {
       final existing = Rehearsal(
         id: 'reh-edit-1',
         productionId: 'prod-1',
@@ -613,7 +666,10 @@ void main() {
 
       expect(find.text('Edit Rehearsal'), findsOneWidget);
 
-      final titleField = find.widgetWithText(TextFormField, 'Rehearsal Title *');
+      final titleField = find.widgetWithText(
+        TextFormField,
+        'Rehearsal Title *',
+      );
       await tester.enterText(titleField, 'Updated Rehearsal Title');
 
       final saveButton = find.byKey(const Key('save_rehearsal_button'));
@@ -621,14 +677,70 @@ void main() {
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
-      expect(fakeService.customRehearsals.first.title, 'Updated Rehearsal Title');
+      expect(
+        fakeService.customRehearsals.first.title,
+        'Updated Rehearsal Title',
+      );
       expect(fakeService.updateCalls, 1);
       expect(fakeService.createCalls, 0);
     });
+
+    testWidgets(
+      'allows editing historical rehearsal date without date picker assertion crash',
+      (WidgetTester tester) async {
+        final historicalRehearsal = Rehearsal(
+          id: 'reh-hist-1',
+          productionId: 'prod-hist',
+          title: 'Past Production Archival Run',
+          venueId: 'venue-hist',
+          venueName: 'Historic Theatre',
+          startTime: DateTime(2021, 4, 15, 14, 0),
+          endTime: DateTime(2021, 4, 15, 17, 0),
+          creatorUid: 'user-hist',
+        );
+        final fakeService = FakeRehearsalService(
+          initialRehearsals: [historicalRehearsal],
+        );
+
+        await tester.pumpWidget(
+          buildApp(
+            AddRehearsalScreen(
+              initialRehearsal: historicalRehearsal,
+              rehearsalService: fakeService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Edit Rehearsal'), findsOneWidget);
+        expect(find.text('15 Apr 2021'), findsOneWidget);
+
+        // Tap on Rehearsal Date tile to open showDatePicker
+        await tester.tap(find.text('15 Apr 2021'));
+        await tester.pumpAndSettle();
+
+        // Date picker dialog is displayed without assertion crash
+        expect(tester.takeException(), isNull);
+        expect(find.byType(DatePickerDialog), findsOneWidget);
+
+        // Cancel date picker dialog
+        await tester.tap(
+          find.descendant(
+            of: find.byType(DatePickerDialog),
+            matching: find.text('Cancel'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('15 Apr 2021'), findsOneWidget);
+      },
+    );
   });
 
   group('RehearsalDetailsScreen Tests', () {
-    testWidgets('renders all rehearsal details and timeline', (WidgetTester tester) async {
+    testWidgets('renders all rehearsal details and timeline', (
+      WidgetTester tester,
+    ) async {
       final rehearsal = Rehearsal(
         id: 'det-1',
         productionId: 'prod-macbeth',
@@ -655,7 +767,9 @@ void main() {
       expect(find.text('Back to Rehearsals List'), findsOneWidget);
     });
 
-    testWidgets('pops back to rehearsals list when back button is tapped', (WidgetTester tester) async {
+    testWidgets('pops back to rehearsals list when back button is tapped', (
+      WidgetTester tester,
+    ) async {
       final rehearsal = Rehearsal(
         id: 'det-2',
         productionId: 'prod-1',
@@ -670,21 +784,27 @@ void main() {
         buildApp(
           Navigator(
             onGenerateRoute: (settings) => MaterialPageRoute(
-              builder: (context) => RehearsalDetailsScreen(rehearsal: rehearsal),
+              builder: (context) =>
+                  RehearsalDetailsScreen(rehearsal: rehearsal),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      final backButton = find.widgetWithText(OutlinedButton, 'Back to Rehearsals List');
+      final backButton = find.widgetWithText(
+        OutlinedButton,
+        'Back to Rehearsals List',
+      );
       await tester.tap(backButton);
       await tester.pumpAndSettle();
 
       expect(find.byType(RehearsalDetailsScreen), findsNothing);
     });
 
-    testWidgets('deletes rehearsal after confirmation dialog', (WidgetTester tester) async {
+    testWidgets('deletes rehearsal after confirmation dialog', (
+      WidgetTester tester,
+    ) async {
       final rehearsal = Rehearsal(
         id: 'det-del-1',
         productionId: 'prod-1',
@@ -722,132 +842,580 @@ void main() {
   });
 
   group('Rehearsal End-to-End Flow Tests', () {
-    testWidgets('full lifecycle: schedule -> list -> details -> edit -> delete', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(1280, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    testWidgets(
+      'full lifecycle: schedule -> list -> details -> edit -> delete',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      final fakeService = FakeRehearsalService(initialRehearsals: []);
+        final fakeService = FakeRehearsalService(initialRehearsals: []);
 
-      await tester.pumpWidget(
-        buildApp(RehearsalsScreen(rehearsalService: fakeService)),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          buildApp(RehearsalsScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
 
-      // 1. Initial Empty State
-      expect(find.text('No Rehearsals Scheduled'), findsOneWidget);
+        // 1. Initial Empty State
+        expect(find.text('No Rehearsals Scheduled'), findsOneWidget);
 
-      // 2. Schedule New Rehearsal
-      await tester.tap(find.byKey(const Key('add_rehearsal_fab')));
-      await tester.pumpAndSettle();
+        // 2. Schedule New Rehearsal
+        await tester.tap(find.byKey(const Key('add_rehearsal_fab')));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(AddRehearsalScreen), findsOneWidget);
+        expect(find.byType(AddRehearsalScreen), findsOneWidget);
 
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Rehearsal Title *'),
-        'Hamlet Final Staging',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Production ID *'),
-        'prod-hamlet',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Venue *'),
-        'Royal Grand Stage',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Rehearsal Notes & Scene Run'),
-        'Final dress run with full cast and orchestra',
-      );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Rehearsal Title *'),
+          'Hamlet Final Staging',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Production ID *'),
+          'prod-hamlet',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Venue *'),
+          'Royal Grand Stage',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Rehearsal Notes & Scene Run'),
+          'Final dress run with full cast and orchestra',
+        );
 
-      final saveButton = find.byKey(const Key('save_rehearsal_button'));
-      await tester.ensureVisible(saveButton);
-      await tester.tap(saveButton);
-      await tester.pumpAndSettle();
+        final saveButton = find.byKey(const Key('save_rehearsal_button'));
+        await tester.ensureVisible(saveButton);
+        await tester.tap(saveButton);
+        await tester.pumpAndSettle();
 
-      // 3. Confirm in List
-      expect(find.byType(RehearsalsScreen), findsOneWidget);
-      expect(find.text('Hamlet Final Staging'), findsOneWidget);
-      expect(find.text('Royal Grand Stage'), findsOneWidget);
+        // 3. Confirm in List
+        expect(find.byType(RehearsalsScreen), findsOneWidget);
+        expect(find.text('Hamlet Final Staging'), findsOneWidget);
+        expect(find.text('Royal Grand Stage'), findsOneWidget);
 
-      // 4. Open Details
-      await tester.tap(find.text('Hamlet Final Staging'));
-      await tester.pumpAndSettle();
+        // 4. Open Details
+        await tester.tap(find.text('Hamlet Final Staging'));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(RehearsalDetailsScreen), findsOneWidget);
-      expect(find.text('Rehearsal Details'), findsOneWidget);
-      expect(find.text('Royal Grand Stage'), findsOneWidget);
+        expect(find.byType(RehearsalDetailsScreen), findsOneWidget);
+        expect(find.text('Rehearsal Details'), findsOneWidget);
+        expect(find.text('Royal Grand Stage'), findsOneWidget);
 
-      // 5. Edit Rehearsal from Details
-      await tester.tap(find.byIcon(Icons.edit_outlined));
-      await tester.pumpAndSettle();
+        // 5. Edit Rehearsal from Details
+        await tester.tap(find.byIcon(Icons.edit_outlined));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(AddRehearsalScreen), findsOneWidget);
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Rehearsal Title *'),
-        'Hamlet Final Staging (Updated)',
-      );
+        expect(find.byType(AddRehearsalScreen), findsOneWidget);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Rehearsal Title *'),
+          'Hamlet Final Staging (Updated)',
+        );
 
-      final editSaveButton = find.byKey(const Key('save_rehearsal_button'));
-      await tester.ensureVisible(editSaveButton);
-      await tester.tap(editSaveButton);
-      await tester.pumpAndSettle();
+        final editSaveButton = find.byKey(const Key('save_rehearsal_button'));
+        await tester.ensureVisible(editSaveButton);
+        await tester.tap(editSaveButton);
+        await tester.pumpAndSettle();
 
-      // Details updated
-      expect(find.text('Hamlet Final Staging (Updated)'), findsOneWidget);
+        // Details updated
+        expect(find.text('Hamlet Final Staging (Updated)'), findsOneWidget);
 
-      // 6. Delete from Details
-      await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
+        // 6. Delete from Details
+        await tester.tap(find.byIcon(Icons.delete_outline));
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+        await tester.pumpAndSettle();
 
-      // 7. Returned to RehearsalsScreen and empty state restored
-      expect(find.byType(RehearsalsScreen), findsOneWidget);
-      expect(find.text('No Rehearsals Scheduled'), findsOneWidget);
-      expect(fakeService.customRehearsals.isEmpty, isTrue);
-    });
+        // 7. Returned to RehearsalsScreen and empty state restored
+        expect(find.byType(RehearsalsScreen), findsOneWidget);
+        expect(find.text('No Rehearsals Scheduled'), findsOneWidget);
+        expect(fakeService.customRehearsals.isEmpty, isTrue);
+      },
+    );
   });
 
   group('Dashboard Rehearsals Tab Integration Tests', () {
-    testWidgets('navigates to Rehearsals module when Upcoming Rehearsals card is tapped', (WidgetTester tester) async {
-      final fakeAuth = FakeAuthService();
-      final fakeRehearsalService = FakeRehearsalService(
-        initialRehearsals: [
-          Rehearsal(
-            id: 'dash-reh-1',
-            productionId: 'prod-1',
-            title: 'Integrated Dashboard Rehearsal',
-            venueId: 'stage-main',
-            venueName: 'Main Stage',
-            startTime: DateTime(2026, 10, 25, 14, 0),
-            endTime: DateTime(2026, 10, 25, 16, 0),
-            creatorUid: 'user-dash',
+    testWidgets(
+      'navigates to Rehearsals module when Upcoming Rehearsals card is tapped',
+      (WidgetTester tester) async {
+        final fakeAuth = FakeAuthService();
+        final fakeRehearsalService = FakeRehearsalService(
+          initialRehearsals: [
+            Rehearsal(
+              id: 'dash-reh-1',
+              productionId: 'prod-1',
+              title: 'Integrated Dashboard Rehearsal',
+              venueId: 'stage-main',
+              venueName: 'Main Stage',
+              startTime: DateTime(2026, 10, 25, 14, 0),
+              endTime: DateTime(2026, 10, 25, 16, 0),
+              creatorUid: 'user-dash',
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          buildApp(
+            DashboardScreen(
+              authService: fakeAuth,
+              rehearsalService: fakeRehearsalService,
+            ),
           ),
-        ],
-      );
+        );
+        await tester.pumpAndSettle();
+
+        // Tap on Upcoming Rehearsals metric card
+        await tester.tap(find.text('Upcoming Rehearsals').first);
+        await tester.pumpAndSettle();
+
+        // RehearsalsScreen is rendered
+        expect(find.byType(RehearsalsScreen), findsOneWidget);
+        expect(find.text('Integrated Dashboard Rehearsal'), findsOneWidget);
+      },
+    );
+  });
+
+  group('Production Filtering & Deep Integration Tests', () {
+    testWidgets(
+      'initialProductionFilter displays filter chip and filters rehearsals',
+      (WidgetTester tester) async {
+        final rehearsals = [
+          Rehearsal(
+            id: 'reh-p1',
+            productionId: 'prod-1',
+            title: 'Hamlet Act 1',
+            venueId: 'stage-1',
+            startTime: DateTime(2026, 11, 1, 10, 0),
+            endTime: DateTime(2026, 11, 1, 12, 0),
+            creatorUid: 'dir',
+          ),
+          Rehearsal(
+            id: 'reh-p2',
+            productionId: 'prod-2',
+            title: 'Crucible Scene 2',
+            venueId: 'stage-2',
+            startTime: DateTime(2026, 11, 2, 14, 0),
+            endTime: DateTime(2026, 11, 2, 16, 0),
+            creatorUid: 'dir',
+          ),
+        ];
+        final fakeService = FakeRehearsalService(initialRehearsals: rehearsals);
+
+        await tester.pumpWidget(
+          buildApp(
+            RehearsalsScreen(
+              rehearsalService: fakeService,
+              initialProductionFilter: 'prod-1',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Only prod-1 item is visible
+        expect(find.text('Hamlet Act 1'), findsOneWidget);
+        expect(find.text('Crucible Scene 2'), findsNothing);
+
+        // Filter chip for prod-1 exists and is highlighted
+        expect(find.widgetWithText(FilterChip, 'prod-1'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'shows active filter chip even when rehearsals list has no entries for that production',
+      (WidgetTester tester) async {
+        final rehearsals = [
+          Rehearsal(
+            id: 'reh-p2',
+            productionId: 'prod-2',
+            title: 'Crucible Scene 2',
+            venueId: 'stage-2',
+            startTime: DateTime(2026, 11, 2, 14, 0),
+            endTime: DateTime(2026, 11, 2, 16, 0),
+            creatorUid: 'dir',
+          ),
+        ];
+        final fakeService = FakeRehearsalService(initialRehearsals: rehearsals);
+
+        await tester.pumpWidget(
+          buildApp(
+            RehearsalsScreen(
+              rehearsalService: fakeService,
+              initialProductionFilter: 'prod-empty',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Empty state shown
+        expect(find.text('No Matching Rehearsals'), findsOneWidget);
+        // Filter chip for prod-empty exists
+        expect(find.widgetWithText(FilterChip, 'prod-empty'), findsOneWidget);
+        // Clear Filters button is present
+        expect(find.byKey(const Key('clear_filters_button')), findsOneWidget);
+
+        // Tapping Clear Filters restores prod-2 rehearsal
+        await tester.tap(find.byKey(const Key('clear_filters_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Crucible Scene 2'), findsOneWidget);
+        expect(find.text('No Matching Rehearsals'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'filtered empty state schedule button pre-selects the filtered production ID',
+      (WidgetTester tester) async {
+        final rehearsals = [
+          Rehearsal(
+            id: 'reh-p2',
+            productionId: 'prod-2',
+            title: 'Crucible Scene 2',
+            venueId: 'stage-2',
+            startTime: DateTime(2026, 11, 2, 14, 0),
+            endTime: DateTime(2026, 11, 2, 16, 0),
+            creatorUid: 'dir',
+          ),
+        ];
+        final fakeService = FakeRehearsalService(initialRehearsals: rehearsals);
+
+        await tester.pumpWidget(
+          buildApp(
+            RehearsalsScreen(
+              rehearsalService: fakeService,
+              initialProductionFilter: 'prod-new-target',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final scheduleBtn = find.byKey(
+          const Key('filtered_schedule_rehearsal_button'),
+        );
+        expect(scheduleBtn, findsOneWidget);
+        await tester.tap(scheduleBtn);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AddRehearsalScreen), findsOneWidget);
+        final prodField = find.widgetWithText(TextFormField, 'Production ID *');
+        expect(
+          find.descendant(
+            of: prodField,
+            matching: find.text('prod-new-target'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('search query and production filter work together', (
+      WidgetTester tester,
+    ) async {
+      final rehearsals = [
+        Rehearsal(
+          id: 'reh-1',
+          productionId: 'prod-1',
+          title: 'Hamlet Act 1 Blocking',
+          venueId: 'stage-1',
+          startTime: DateTime(2026, 11, 1, 10, 0),
+          endTime: DateTime(2026, 11, 1, 12, 0),
+          creatorUid: 'dir',
+        ),
+        Rehearsal(
+          id: 'reh-2',
+          productionId: 'prod-1',
+          title: 'Hamlet Act 2 Music',
+          venueId: 'studio-a',
+          startTime: DateTime(2026, 11, 1, 14, 0),
+          endTime: DateTime(2026, 11, 1, 16, 0),
+          creatorUid: 'dir',
+        ),
+        Rehearsal(
+          id: 'reh-3',
+          productionId: 'prod-2',
+          title: 'Crucible Act 1 Blocking',
+          venueId: 'stage-1',
+          startTime: DateTime(2026, 11, 2, 10, 0),
+          endTime: DateTime(2026, 11, 2, 12, 0),
+          creatorUid: 'dir',
+        ),
+      ];
+      final fakeService = FakeRehearsalService(initialRehearsals: rehearsals);
 
       await tester.pumpWidget(
         buildApp(
-          DashboardScreen(
-            authService: fakeAuth,
-            rehearsalService: fakeRehearsalService,
+          RehearsalsScreen(
+            rehearsalService: fakeService,
+            initialProductionFilter: 'prod-1',
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Tap on Upcoming Rehearsals metric card
-      await tester.tap(find.text('Upcoming Rehearsals').first);
+      // Both Hamlet rehearsals match prod-1
+      expect(find.text('Hamlet Act 1 Blocking'), findsOneWidget);
+      expect(find.text('Hamlet Act 2 Music'), findsOneWidget);
+      expect(find.text('Crucible Act 1 Blocking'), findsNothing);
+
+      // Now add search query 'Music'
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'Music');
       await tester.pumpAndSettle();
 
-      // RehearsalsScreen is rendered
-      expect(find.byType(RehearsalsScreen), findsOneWidget);
-      expect(find.text('Integrated Dashboard Rehearsal'), findsOneWidget);
+      expect(find.text('Hamlet Act 2 Music'), findsOneWidget);
+      expect(find.text('Hamlet Act 1 Blocking'), findsNothing);
     });
+
+    testWidgets(
+      'navigates from ProductionDetailsScreen into RehearsalsScreen with production filter',
+      (WidgetTester tester) async {
+        final production = Production(
+          id: 'prod-hamlet-detail',
+          title: 'Hamlet Showcase',
+          status: 'In Rehearsal',
+        );
+        final fakeRehearsalService = FakeRehearsalService(
+          initialRehearsals: [
+            Rehearsal(
+              id: 'reh-target',
+              productionId: 'prod-hamlet-detail',
+              title: 'Showcase Run-Through',
+              venueId: 'main-stage',
+              startTime: DateTime(2026, 11, 10, 10, 0),
+              endTime: DateTime(2026, 11, 10, 13, 0),
+              creatorUid: 'dir',
+            ),
+            Rehearsal(
+              id: 'reh-other',
+              productionId: 'prod-other',
+              title: 'Other Play Run',
+              venueId: 'stage-2',
+              startTime: DateTime(2026, 11, 10, 14, 0),
+              endTime: DateTime(2026, 11, 10, 16, 0),
+              creatorUid: 'dir',
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          buildApp(
+            ProductionDetailsScreen(
+              production: production,
+              rehearsalService: fakeRehearsalService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Scroll until visible and tap on Rehearsals row
+        await tester.scrollUntilVisible(find.text('Rehearsals'), 100);
+        await tester.tap(find.text('Rehearsals'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(RehearsalsScreen), findsOneWidget);
+        expect(find.text('Showcase Run-Through'), findsOneWidget);
+        expect(find.text('Other Play Run'), findsNothing);
+      },
+    );
+  });
+
+  group('RehearsalDetailsScreen Status & Production Resolution Tests', () {
+    testWidgets(
+      'displays schedule status badge and resolves linked production title & status',
+      (WidgetTester tester) async {
+        final rehearsal = Rehearsal(
+          id: 'reh-resolved',
+          productionId: 'prod-1',
+          title: 'Scene Polish',
+          venueId: 'stage-a',
+          venueName: 'Stage A',
+          startTime: DateTime(2026, 12, 1, 10, 0),
+          endTime: DateTime(2026, 12, 1, 12, 0),
+          creatorUid: 'dir',
+        );
+        final fakeProdService = FakeProductionServiceForRehearsals(
+          initialProductions: [
+            Production(
+              id: 'prod-1',
+              title: 'Hamlet Production',
+              status: 'In Rehearsal',
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          buildApp(
+            RehearsalDetailsScreen(
+              rehearsal: rehearsal,
+              productionService: fakeProdService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Schedule status: Upcoming (December 2026)
+        expect(find.text('Upcoming'), findsOneWidget);
+        expect(find.text('prod-1'), findsOneWidget);
+        expect(find.textContaining('Hamlet Production'), findsOneWidget);
+        expect(find.textContaining('In Rehearsal'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'handles missing or deleted production document safely in details',
+      (WidgetTester tester) async {
+        final rehearsal = Rehearsal(
+          id: 'reh-missing-prod',
+          productionId: 'prod-deleted-999',
+          title: 'Orphaned Rehearsal',
+          venueId: 'stage-x',
+          startTime: DateTime(2026, 12, 1, 10, 0),
+          endTime: DateTime(2026, 12, 1, 12, 0),
+          creatorUid: 'dir',
+        );
+        final fakeProdService = FakeProductionServiceForRehearsals(
+          initialProductions: [], // empty productions
+        );
+
+        await tester.pumpWidget(
+          buildApp(
+            RehearsalDetailsScreen(
+              rehearsal: rehearsal,
+              productionService: fakeProdService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('prod-deleted-999'), findsOneWidget);
+        expect(
+          find.text('Production record not found or deleted'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('shows completed status for past rehearsal', (
+      WidgetTester tester,
+    ) async {
+      final rehearsal = Rehearsal(
+        id: 'reh-past',
+        productionId: 'prod-1',
+        title: 'Archived Run',
+        venueId: 'stage-1',
+        startTime: DateTime(2020, 1, 1, 10, 0),
+        endTime: DateTime(2020, 1, 1, 12, 0),
+        creatorUid: 'dir',
+      );
+
+      await tester.pumpWidget(
+        buildApp(RehearsalDetailsScreen(rehearsal: rehearsal)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Completed'), findsOneWidget);
+    });
+  });
+
+  group('Narrow Viewport Responsiveness & Layout Overflow Tests', () {
+    testWidgets(
+      'renders RehearsalsScreen without overflow on 360x640 mobile screen',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final fakeService = FakeRehearsalService(
+          initialRehearsals: [
+            Rehearsal(
+              id: 'reh-narrow',
+              productionId: 'prod-narrow-view',
+              title: 'Long Title Rehearsal For Narrow Viewport Check',
+              venueId: 'long-venue-name',
+              venueName: 'The Grand Royal Theatre Main Stage Hall A',
+              startTime: DateTime(2026, 11, 15, 14, 30),
+              endTime: DateTime(2026, 11, 15, 18, 45),
+              creatorUid: 'dir',
+              notes: 'Detailed scenes to cover: Act I Scene 1 through Act II Scene 4 with full cast.',
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          buildApp(RehearsalsScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(RehearsalsScreen), findsOneWidget);
+        expect(
+          find.text('Long Title Rehearsal For Narrow Viewport Check'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'renders RehearsalDetailsScreen without overflow on 360x640 mobile screen',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final rehearsal = Rehearsal(
+          id: 'reh-narrow-detail',
+          productionId: 'prod-hamlet-very-long-id',
+          title: 'Act II Dress Run With Full Costumes And Orchestra',
+          venueId: 'auditorium-hall',
+          venueName: 'Royal Shakespeare Grand Amphitheatre',
+          startTime: DateTime(2026, 11, 20, 13, 15),
+          endTime: DateTime(2026, 11, 20, 17, 45),
+          creatorUid: 'dir',
+          notes: 'Extended rehearsal notes covering lighting cues, props handoff, sound checks, and stage reset.',
+        );
+
+        await tester.pumpWidget(
+          buildApp(RehearsalDetailsScreen(rehearsal: rehearsal)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(RehearsalDetailsScreen), findsOneWidget);
+        expect(
+          find.text('Act II Dress Run With Full Costumes And Orchestra'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'renders AddRehearsalScreen without overflow on 360x640 mobile screen',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final fakeService = FakeRehearsalService();
+
+        await tester.pumpWidget(
+          buildApp(AddRehearsalScreen(rehearsalService: fakeService)),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AddRehearsalScreen), findsOneWidget);
+        expect(find.text('Schedule Rehearsal'), findsWidgets);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

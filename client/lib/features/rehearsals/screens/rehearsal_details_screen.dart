@@ -1,6 +1,9 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+
 import '../models/rehearsal_model.dart';
 import '../services/rehearsal_service.dart';
+import '../../productions/models/production_model.dart';
 import '../../productions/services/production_service.dart';
 import 'add_rehearsal_screen.dart';
 
@@ -23,19 +26,120 @@ class RehearsalDetailsScreen extends StatefulWidget {
 class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
   late Rehearsal _rehearsal;
   late final RehearsalService _service;
+  late final ProductionService _productionService;
+  Production? _loadedProduction;
+  bool _loadingProduction = false;
   bool _isDeleting = false;
+  bool _hasModified = false;
 
   @override
   void initState() {
     super.initState();
     _rehearsal = widget.rehearsal;
     _service = widget.rehearsalService ?? RehearsalService();
+    _productionService = widget.productionService ?? ProductionService();
+    _loadLinkedProduction();
+  }
+
+  Future<void> _loadLinkedProduction() async {
+    if (_rehearsal.productionId.trim().isEmpty) return;
+    final hasInjectedService = widget.productionService != null;
+    final isFirebaseReady = Firebase.apps.isNotEmpty;
+    if (!hasInjectedService && !isFirebaseReady) return;
+
+    setState(() {
+      _loadingProduction = true;
+    });
+
+    try {
+      final productions = await _productionService.getProductions().timeout(
+        const Duration(seconds: 2),
+      );
+      if (!mounted) return;
+      final match = productions.where(
+        (p) => p.id == _rehearsal.productionId.trim(),
+      );
+      setState(() {
+        _loadedProduction = match.isNotEmpty ? match.first : null;
+        _loadingProduction = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loadingProduction = false;
+        });
+      }
+    }
+  }
+
+  String get _scheduleStatus {
+    final now = DateTime.now();
+    if (now.isBefore(_rehearsal.startTime)) {
+      return 'Upcoming';
+    } else if (now.isAfter(_rehearsal.endTime)) {
+      return 'Completed';
+    } else {
+      return 'In Progress';
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Upcoming':
+        return const Color(0xFF1976D2);
+      case 'In Progress':
+        return const Color(0xFF2E7D32);
+      case 'Completed':
+        return Colors.blueGrey;
+      default:
+        return const Color(0xFF8B1E3F);
+    }
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final color = _getStatusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            status,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final monthName = months[dt.month - 1];
     return '${dt.day} $monthName ${dt.year}';
@@ -127,7 +231,9 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
     if (updated != null && mounted) {
       setState(() {
         _rehearsal = updated;
+        _hasModified = true;
       });
+      _loadLinkedProduction();
     }
   }
 
@@ -144,6 +250,12 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
         title: const Text(
           'Rehearsal Details',
           style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: () =>
+              Navigator.of(context).pop(_hasModified ? true : null),
         ),
         actions: [
           IconButton(
@@ -180,7 +292,9 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.6,
+                      ),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -199,7 +313,8 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF8B1E3F).withValues(alpha: 0.1),
+                              color: const Color(0xFF8B1E3F)
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
@@ -215,42 +330,56 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                               children: [
                                 Text(
                                   _rehearsal.title,
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: -0.3,
-                                  ),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.3,
+                                      ),
                                 ),
                                 const SizedBox(height: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFC8963E).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.location_on_outlined,
-                                        size: 14,
-                                        color: Color(0xFFB37D2B),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _rehearsal.venue.isNotEmpty
-                                            ? _rehearsal.venue
-                                            : 'Unassigned Venue',
-                                        style: const TextStyle(
-                                          color: Color(0xFF915F17),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFC8963E)
+                                            .withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                    ],
-                                  ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.location_on_outlined,
+                                            size: 14,
+                                            color: Color(0xFFB37D2B),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              _rehearsal.venue.isNotEmpty
+                                                  ? _rehearsal.venue
+                                                  : 'Unassigned Venue',
+                                              style: const TextStyle(
+                                                color: Color(0xFF915F17),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    _buildStatusBadge(_scheduleStatus),
+                                  ],
                                 ),
                               ],
                             ),
@@ -270,7 +399,9 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.6,
+                      ),
                     ),
                   ),
                   child: Column(
@@ -283,48 +414,109 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInfoItem(
-                              theme: theme,
-                              icon: Icons.calendar_today_outlined,
-                              label: 'Date',
-                              value: dateStr,
-                            ),
-                          ),
-                          Expanded(
-                            child: _buildInfoItem(
-                              theme: theme,
-                              icon: Icons.access_time_rounded,
-                              label: 'Time Window',
-                              value: '$startTimeStr – $endTimeStr',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInfoItem(
-                              theme: theme,
-                              icon: Icons.timelapse_rounded,
-                              label: 'Duration',
-                              value: durationStr,
-                            ),
-                          ),
-                          Expanded(
-                            child: _buildInfoItem(
-                              theme: theme,
-                              icon: Icons.theater_comedy_outlined,
-                              label: 'Production ID',
-                              value: _rehearsal.productionId.isNotEmpty
-                                  ? _rehearsal.productionId
-                                  : 'Not specified',
-                            ),
-                          ),
-                        ],
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          String? prodSubtitle;
+                          if (_loadedProduction != null) {
+                            final st = _loadedProduction!.status.isNotEmpty
+                                ? ' • ${_loadedProduction!.status}'
+                                : '';
+                            prodSubtitle = '${_loadedProduction!.title}$st';
+                          } else if (!_loadingProduction &&
+                              _rehearsal.productionId.isNotEmpty &&
+                              (widget.productionService != null ||
+                                  Firebase.apps.isNotEmpty)) {
+                            prodSubtitle =
+                                'Production record not found or deleted';
+                          }
+
+                          final isNarrow = constraints.maxWidth < 420;
+                          if (isNarrow) {
+                            return Column(
+                              children: [
+                                _buildInfoItem(
+                                  theme: theme,
+                                  icon: Icons.calendar_today_outlined,
+                                  label: 'Date',
+                                  value: dateStr,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildInfoItem(
+                                  theme: theme,
+                                  icon: Icons.access_time_rounded,
+                                  label: 'Time Window',
+                                  value: '$startTimeStr – $endTimeStr',
+                                ),
+                                const SizedBox(height: 12),
+                                _buildInfoItem(
+                                  theme: theme,
+                                  icon: Icons.timelapse_rounded,
+                                  label: 'Duration',
+                                  value: durationStr,
+                                ),
+                                const SizedBox(height: 12),
+                                _buildInfoItem(
+                                  theme: theme,
+                                  icon: Icons.theater_comedy_outlined,
+                                  label: 'Production ID',
+                                  value: _rehearsal.productionId.isNotEmpty
+                                      ? _rehearsal.productionId
+                                      : 'Not specified',
+                                  subtitle: prodSubtitle,
+                                ),
+                              ],
+                            );
+                          }
+
+                          return Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      theme: theme,
+                                      icon: Icons.calendar_today_outlined,
+                                      label: 'Date',
+                                      value: dateStr,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      theme: theme,
+                                      icon: Icons.access_time_rounded,
+                                      label: 'Time Window',
+                                      value: '$startTimeStr – $endTimeStr',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      theme: theme,
+                                      icon: Icons.timelapse_rounded,
+                                      label: 'Duration',
+                                      value: durationStr,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildInfoItem(
+                                      theme: theme,
+                                      icon: Icons.theater_comedy_outlined,
+                                      label: 'Production ID',
+                                      value: _rehearsal.productionId.isNotEmpty
+                                          ? _rehearsal.productionId
+                                          : 'Not specified',
+                                      subtitle: prodSubtitle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -339,7 +531,9 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.6,
+                      ),
                     ),
                   ),
                   child: Column(
@@ -371,11 +565,15 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                 // Back Navigation Button
                 Center(
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () =>
+                        Navigator.of(context).pop(_hasModified ? true : null),
                     icon: const Icon(Icons.arrow_back, size: 18),
                     label: const Text('Back to Rehearsals List'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -395,6 +593,7 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
     required IconData icon,
     required String label,
     required String value,
+    String? subtitle,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,6 +618,19 @@ class _RehearsalDetailsScreenState extends State<RehearsalDetailsScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: subtitle.contains('not found')
+                        ? Colors.red.shade700
+                        : const Color(0xFF8B1E3F),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

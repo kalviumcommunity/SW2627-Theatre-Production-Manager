@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../productions/services/production_service.dart';
 import '../models/rehearsal_model.dart';
 import '../services/rehearsal_service.dart';
@@ -42,6 +43,9 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
   @override
   void didUpdateWidget(RehearsalsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialProductionFilter != oldWidget.initialProductionFilter) {
+      _selectedProductionFilter = widget.initialProductionFilter;
+    }
     if (widget.rehearsalService != oldWidget.rehearsalService) {
       _service = widget.rehearsalService ?? RehearsalService();
       _rehearsalsStream = _service.streamRehearsals();
@@ -276,7 +280,8 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                   child: _buildEmptyState(
                     theme: theme,
                     title: 'No Matching Rehearsals',
-                    subtitle: 'Try adjusting your search query or production filter.',
+                    subtitle:
+                        'Try adjusting your search query or production filter.',
                     isFiltered: true,
                   ),
                 )
@@ -298,43 +303,46 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
 
                       if (crossAxisCount == 1) {
                         return SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (itemContext, index) {
-                              final item = filteredList[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12.0),
-                                child: RehearsalCard(
-                                  rehearsal: item,
-                                  onTap: () => _navigateToDetails(item),
-                                  onEdit: () => _navigateToEdit(item),
-                                  onDelete: () => _deleteRehearsal(item),
-                                ),
-                              );
-                            },
-                            childCount: filteredList.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((
+                            itemContext,
+                            index,
+                          ) {
+                            final item = filteredList[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: RehearsalCard(
+                                rehearsal: item,
+                                onTap: () => _navigateToDetails(item),
+                                onEdit: () => _navigateToEdit(item),
+                                onDelete: () => _deleteRehearsal(item),
+                              ),
+                            );
+                          }, childCount: filteredList.length),
                         );
                       }
 
+                      final childAspectRatio = crossAxisCount == 2
+                          ? 1.30
+                          : 1.35;
                       return SliverGrid(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 1.5,
+                          childAspectRatio: childAspectRatio,
                         ),
-                        delegate: SliverChildBuilderDelegate(
-                          (itemContext, index) {
-                            final item = filteredList[index];
-                            return RehearsalCard(
-                              rehearsal: item,
-                              onTap: () => _navigateToDetails(item),
-                              onEdit: () => _navigateToEdit(item),
-                              onDelete: () => _deleteRehearsal(item),
-                            );
-                          },
-                          childCount: filteredList.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((
+                          itemContext,
+                          index,
+                        ) {
+                          final item = filteredList[index];
+                          return RehearsalCard(
+                            rehearsal: item,
+                            onTap: () => _navigateToDetails(item),
+                            onEdit: () => _navigateToEdit(item),
+                            onDelete: () => _deleteRehearsal(item),
+                          );
+                        }, childCount: filteredList.length),
                       );
                     },
                   ),
@@ -355,10 +363,7 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
     );
 
     if (!widget.showAppBar) {
-      return Scaffold(
-        body: content,
-        floatingActionButton: fab,
-      );
+      return Scaffold(body: content, floatingActionButton: fab);
     }
 
     return Scaffold(
@@ -370,19 +375,26 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: FilledButton.icon(
-              key: const Key('appbar_schedule_rehearsal_button'),
-              onPressed: _navigateToAddRehearsal,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Schedule Rehearsal'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8B1E3F),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
+            child: MediaQuery.sizeOf(context).width < 500
+                ? IconButton(
+                    key: const Key('appbar_schedule_rehearsal_button'),
+                    onPressed: _navigateToAddRehearsal,
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Schedule Rehearsal',
+                  )
+                : FilledButton.icon(
+                    key: const Key('appbar_schedule_rehearsal_button'),
+                    onPressed: _navigateToAddRehearsal,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Schedule Rehearsal'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B1E3F),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -392,39 +404,40 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
   }
 
   Widget _buildHeaderRow(ThemeData theme, int totalCount) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rehearsal Schedule',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Total scheduled: $totalCount',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+        Text(
+          'Rehearsal Schedule',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Total scheduled: $totalCount',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildSearchAndFilters(ThemeData theme, List<Rehearsal> allRehearsals) {
-    // Unique production IDs present in rehearsals
-    final productionIds = allRehearsals
-        .map((r) => r.productionId)
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList();
+  Widget _buildSearchAndFilters(
+    ThemeData theme,
+    List<Rehearsal> allRehearsals,
+  ) {
+    // Unique production IDs present in rehearsals plus any active selection
+    final productionIds = {
+      if (_selectedProductionFilter != null &&
+          _selectedProductionFilter!.trim().isNotEmpty)
+        _selectedProductionFilter!.trim(),
+      ...allRehearsals
+          .map((r) => r.productionId.trim())
+          .where((id) => id.isNotEmpty),
+    }.toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,7 +446,8 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
         TextField(
           controller: _searchController,
           decoration: InputDecoration(
-            hintText: 'Search by rehearsal title, venue, notes, or production...',
+            hintText:
+                'Search by rehearsal title, venue, notes, or production...',
             prefixIcon: const Icon(Icons.search, size: 20),
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
@@ -447,8 +461,13 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                   )
                 : null,
             filled: true,
-            fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.3,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -478,7 +497,8 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                         _selectedProductionFilter = null;
                       });
                     },
-                    selectedColor: const Color(0xFF8B1E3F).withValues(alpha: 0.15),
+                    selectedColor: const Color(0xFF8B1E3F)
+                        .withValues(alpha: 0.15),
                     checkmarkColor: const Color(0xFF8B1E3F),
                     labelStyle: TextStyle(
                       color: _selectedProductionFilter == null
@@ -503,13 +523,16 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                           _selectedProductionFilter = selected ? pId : null;
                         });
                       },
-                      selectedColor: const Color(0xFF8B1E3F).withValues(alpha: 0.15),
+                      selectedColor: const Color(0xFF8B1E3F)
+                          .withValues(alpha: 0.15),
                       checkmarkColor: const Color(0xFF8B1E3F),
                       labelStyle: TextStyle(
                         color: isSelected
                             ? const Color(0xFF8B1E3F)
                             : theme.colorScheme.onSurface,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                         fontSize: 13,
                       ),
                     ),
@@ -577,11 +600,61 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF8B1E3F),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
+              ),
+            ] else ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    key: const Key('clear_filters_button'),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                        _selectedProductionFilter = null;
+                      });
+                    },
+                    icon: const Icon(Icons.filter_alt_off, size: 16),
+                    label: const Text('Clear Filters'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    key: const Key('filtered_schedule_rehearsal_button'),
+                    onPressed: _navigateToAddRehearsal,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Schedule Rehearsal'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B1E3F),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],
