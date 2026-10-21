@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../auditions/screens/auditions_screen.dart';
+import '../../auditions/services/audition_service.dart';
 import '../../rehearsals/screens/rehearsals_screen.dart';
 import '../models/production_model.dart';
 import '../services/production_service.dart';
@@ -7,15 +10,18 @@ import 'add_production_screen.dart';
 class ProductionDetailsScreen extends StatefulWidget {
   final Production production;
   final ProductionService? productionService;
+  final AuditionService? auditionService;
 
   const ProductionDetailsScreen({
     super.key,
     required this.production,
     this.productionService,
+    this.auditionService,
   });
 
   @override
-  State<ProductionDetailsScreen> createState() => _ProductionDetailsScreenState();
+  State<ProductionDetailsScreen> createState() =>
+      _ProductionDetailsScreenState();
 }
 
 class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
@@ -162,7 +168,10 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
                     icon: const Icon(Icons.arrow_back, size: 18),
                     label: const Text('Back to Productions List'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -229,7 +238,8 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
               letterSpacing: -0.3,
             ),
           ),
-          if (_production.director != null && _production.director!.isNotEmpty) ...[
+          if (_production.director != null &&
+              _production.director!.isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(
               children: [
@@ -310,7 +320,9 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.35,
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -410,14 +422,27 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           _buildActivityRow(
             icon: Icons.how_to_reg_outlined,
             title: 'Auditions',
-            subtitle: 'No auditions active for this production',
+            subtitle: 'View and schedule audition calls for this production',
             theme: theme,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AuditionsScreen(
+                    initialProductionFilter: _production.id,
+                    showAppBar: true,
+                    productionService: _service,
+                    auditionService: widget.auditionService,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 10),
           _buildActivityRow(
             icon: Icons.event_repeat_outlined,
             title: 'Rehearsals',
-            subtitle: 'View and schedule rehearsal sessions for this production',
+            subtitle:
+                'View and schedule rehearsal sessions for this production',
             theme: theme,
             onTap: () {
               Navigator.of(context).push(
@@ -487,7 +512,9 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.25,
+        ),
         borderRadius: BorderRadius.circular(10),
       ),
       child: onTap != null

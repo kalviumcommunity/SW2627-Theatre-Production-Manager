@@ -1,5 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:client/features/auditions/screens/auditions_screen.dart';
+import 'package:client/features/auditions/services/audition_service.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
 import 'package:client/features/dashboard/widgets/coming_soon_view.dart';
 import 'package:client/features/dashboard/widgets/dashboard_nav_item.dart';
@@ -19,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
   final UserService? userService;
   final ProductionService? productionService;
   final RehearsalService? rehearsalService;
+  final AuditionService? auditionService;
 
   const DashboardScreen({
     super.key,
@@ -26,6 +30,7 @@ class DashboardScreen extends StatefulWidget {
     this.userService,
     this.productionService,
     this.rehearsalService,
+    this.auditionService,
   });
 
   @override
@@ -82,25 +87,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       // Stream profile from Firestore
-      _profileSubscription = _userService.streamUserProfile(user.uid).listen(
-        (data) {
-          if (!mounted || data == null) return;
-          setState(() {
-            if (data['name'] != null && data['name'].toString().trim().isNotEmpty) {
-              _userName = data['name'].toString().trim();
-            }
-            if (data['role'] != null && data['role'].toString().trim().isNotEmpty) {
-              _userRole = data['role'].toString().trim();
-            }
-            if (data['email'] != null && data['email'].toString().trim().isNotEmpty) {
-              _userEmail = data['email'].toString().trim();
-            }
-          });
-        },
-        onError: (_) {
-          // Fallback values retained on error
-        },
-      );
+      _profileSubscription = _userService
+          .streamUserProfile(user.uid)
+          .listen(
+            (data) {
+              if (!mounted || data == null) return;
+              setState(() {
+                if (data['name'] != null &&
+                    data['name'].toString().trim().isNotEmpty) {
+                  _userName = data['name'].toString().trim();
+                }
+                if (data['role'] != null &&
+                    data['role'].toString().trim().isNotEmpty) {
+                  _userRole = data['role'].toString().trim();
+                }
+                if (data['email'] != null &&
+                    data['email'].toString().trim().isNotEmpty) {
+                  _userEmail = data['email'].toString().trim();
+                }
+              });
+            },
+            onError: (_) {
+              // Fallback values retained on error
+            },
+          );
     } catch (_) {
       // Retain fallback if Firebase is unavailable
     }
@@ -177,22 +187,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _selectedNavIndex == 0
                       ? _buildDashboardView(theme)
                       : _selectedNavIndex == 1
-                          ? ProductionsScreen(
-                              showAppBar: false,
-                              productionService: widget.productionService,
-                            )
-                          : _selectedNavIndex == 4
-                              ? RehearsalsScreen(
-                                  showAppBar: false,
-                                  rehearsalService: widget.rehearsalService,
-                                  productionService: widget.productionService,
-                                )
-                              : ComingSoonView(
-                                  title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
-                                  description: kDashboardNavItems[_selectedNavIndex].description,
-                                  icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
-                                  onBackToDashboard: () => _onNavigateTo(0),
-                                ),
+                      ? ProductionsScreen(
+                          showAppBar: false,
+                          productionService: widget.productionService,
+                        )
+                      : (_selectedNavIndex == 2 &&
+                            widget.auditionService != null)
+                      ? AuditionsScreen(
+                          showAppBar: false,
+                          auditionService: widget.auditionService,
+                          productionService: widget.productionService,
+                        )
+                      : _selectedNavIndex == 4
+                      ? RehearsalsScreen(
+                          showAppBar: false,
+                          rehearsalService: widget.rehearsalService,
+                          productionService: widget.productionService,
+                        )
+                      : ComingSoonView(
+                          title:
+                              '${kDashboardNavItems[_selectedNavIndex].label} Module',
+                          description:
+                              kDashboardNavItems[_selectedNavIndex].description,
+                          icon: kDashboardNavItems[_selectedNavIndex]
+                              .selectedIcon,
+                          onBackToDashboard: () => _onNavigateTo(0),
+                        ),
                 ),
               ],
             ),
@@ -219,7 +239,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ? const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.logout, size: 16),
           label: Text(_isLoggingOut ? 'Logging out...' : 'Logout'),
@@ -264,10 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                '•',
-                style: TextStyle(color: theme.colorScheme.outline),
-              ),
+              Text('•', style: TextStyle(color: theme.colorScheme.outline)),
               const SizedBox(width: 8),
               Text(
                 kDashboardNavItems[_selectedNavIndex].label,
@@ -291,11 +311,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.5,
+                      ),
                     ),
                   ),
                   child: Row(
@@ -306,9 +331,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         foregroundColor: Colors.white,
                         child: Text(
                           _userName.isNotEmpty
-                              ? _userName.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase()
+                              ? _userName
+                                    .trim()
+                                    .split(' ')
+                                    .map((e) => e.isNotEmpty ? e[0] : '')
+                                    .take(2)
+                                    .join()
+                                    .toUpperCase()
                               : 'U',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -367,14 +401,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.logout, size: 16),
                 label: Text(_isLoggingOut ? 'Logging out...' : 'Logout'),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF8B1E3F),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -412,14 +452,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       flex: 6,
                       child: UpcomingRehearsalsCard(
                         firestore: _userService.firestore,
-                        onViewAllPressed: () => _onNavigateTo(4), // Rehearsals tab
+                        onViewAllPressed: () =>
+                            _onNavigateTo(4), // Rehearsals tab
                       ),
                     ),
                     const SizedBox(width: 24),
-                    Expanded(
-                      flex: 4,
-                      child: _buildTheatreHubCard(theme),
-                    ),
+                    Expanded(flex: 4, child: _buildTheatreHubCard(theme)),
                   ],
                 );
               } else {
@@ -453,10 +491,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            const Color(0xFF8B1E3F),
-            const Color(0xFF5A1027),
-          ],
+          colors: [const Color(0xFF8B1E3F), const Color(0xFF5A1027)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -478,7 +513,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(16),
@@ -486,7 +524,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.theater_comedy, color: Color(0xFFF3C64F), size: 16),
+                          const Icon(
+                            Icons.theater_comedy,
+                            color: Color(0xFFF3C64F),
+                            size: 16,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             _userRole,
@@ -730,7 +772,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.25,
+            ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
