@@ -64,6 +64,15 @@ describe('Firestore Security Rules', function () {
         endTime: new Date('2026-11-01T12:00:00Z'),
         creatorUid: DIRECTOR_UID,
       });
+      await db.collection('auditions').doc('aud-existing').set({
+        productionId: 'prod-existing',
+        title: 'Lead Roles Audition',
+        venue: 'Studio A',
+        startTime: new Date('2026-11-02T10:00:00Z'),
+        endTime: new Date('2026-11-02T14:00:00Z'),
+        status: 'Scheduled',
+        creatorUid: DIRECTOR_UID,
+      });
     });
   });
 
@@ -627,6 +636,166 @@ describe('Firestore Security Rules', function () {
         })
       );
       await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
+    });
+  });
+  describe('11. Audition schedules access control and validation', () => {
+    it('denies unauthenticated read and write access to auditions', async () => {
+      const db = testEnv.unauthenticatedContext().firestore();
+      await assertFails(db.collection('auditions').doc('aud-existing').get());
+      await assertFails(db.collection('auditions').get());
+      await assertFails(
+        db.collection('auditions').doc('aud-unauth').set({
+          productionId: 'prod-existing',
+          title: 'Unauth Call',
+          venue: 'Main Stage',
+          startTime: new Date('2026-11-05T10:00:00Z'),
+          endTime: new Date('2026-11-05T14:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: 'unauth-uid',
+        })
+      );
+    });
+
+    it('allows authenticated users to read auditions', async () => {
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      const noProfileDb = testEnv.authenticatedContext(NO_PROFILE_UID).firestore();
+
+      await assertSucceeds(directorDb.collection('auditions').doc('aud-existing').get());
+      await assertSucceeds(castDb.collection('auditions').doc('aud-existing').get());
+      await assertSucceeds(noProfileDb.collection('auditions').doc('aud-existing').get());
+    });
+
+    it('denies Cast Member from creating, updating, or deleting auditions', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('auditions').doc('aud-cast-new').set({
+          productionId: 'prod-existing',
+          title: 'Cast Audition',
+          venue: 'Studio B',
+          startTime: new Date('2026-11-05T10:00:00Z'),
+          endTime: new Date('2026-11-05T14:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: CAST_UID,
+        })
+      );
+      await assertFails(
+        db.collection('auditions').doc('aud-existing').update({
+          title: 'Tampered Title',
+        })
+      );
+      await assertFails(db.collection('auditions').doc('aud-existing').delete());
+    });
+
+    it('allows Director to create, update, and delete auditions with valid data', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('auditions').doc('aud-dir-new').set({
+          productionId: 'prod-existing',
+          title: 'Director Audition Call',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: DIRECTOR_UID,
+        })
+      );
+      await assertSucceeds(
+        db.collection('auditions').doc('aud-existing').update({
+          status: 'Cancelled',
+        })
+      );
+      await assertSucceeds(db.collection('auditions').doc('aud-existing').delete());
+    });
+
+    it('denies audition creation with invalid time range (endTime <= startTime)', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('auditions').doc('aud-inv-time').set({
+          productionId: 'prod-existing',
+          title: 'Invalid Time Audition',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T14:00:00Z'),
+          endTime: new Date('2026-11-10T10:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: DIRECTOR_UID,
+        })
+      );
+      await assertFails(
+        db.collection('auditions').doc('aud-zero-dur').set({
+          productionId: 'prod-existing',
+          title: 'Zero Duration Audition',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T10:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: DIRECTOR_UID,
+        })
+      );
+    });
+
+    it('denies audition creation with missing or empty productionId, title, or venue', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('auditions').doc('aud-no-title').set({
+          productionId: 'prod-existing',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'Scheduled',
+        })
+      );
+      await assertFails(
+        db.collection('auditions').doc('aud-empty-venue').set({
+          productionId: 'prod-existing',
+          title: 'Audition',
+          venue: '',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'Scheduled',
+        })
+      );
+      await assertFails(
+        db.collection('auditions').doc('aud-empty-prod').set({
+          productionId: '',
+          title: 'Audition',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'Scheduled',
+        })
+      );
+    });
+
+    it('denies audition with invalid status', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('auditions').doc('aud-inv-status').set({
+          productionId: 'prod-existing',
+          title: 'Audition',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'PendingReview',
+          creatorUid: DIRECTOR_UID,
+        })
+      );
+    });
+
+    it('denies user without profile from managing auditions', async () => {
+      const db = testEnv.authenticatedContext(NO_PROFILE_UID).firestore();
+      await assertFails(
+        db.collection('auditions').doc('aud-no-prof').set({
+          productionId: 'prod-existing',
+          title: 'Audition',
+          venue: 'Studio A',
+          startTime: new Date('2026-11-10T10:00:00Z'),
+          endTime: new Date('2026-11-10T14:00:00Z'),
+          status: 'Scheduled',
+          creatorUid: NO_PROFILE_UID,
+        })
+      );
+      await assertFails(db.collection('auditions').doc('aud-existing').delete());
     });
   });
 });

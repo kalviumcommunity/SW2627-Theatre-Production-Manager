@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../auditions/screens/auditions_screen.dart';
+import '../../auditions/services/audition_service.dart';
 import '../../rehearsals/screens/rehearsals_screen.dart';
 import '../../rehearsals/services/rehearsal_service.dart';
 import '../models/production_model.dart';
@@ -9,12 +11,14 @@ import 'add_production_screen.dart';
 class ProductionDetailsScreen extends StatefulWidget {
   final Production production;
   final ProductionService? productionService;
+  final AuditionService? auditionService;
   final RehearsalService? rehearsalService;
 
   const ProductionDetailsScreen({
     super.key,
     required this.production,
     this.productionService,
+    this.auditionService,
     this.rehearsalService,
   });
 
@@ -421,8 +425,20 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           _buildActivityRow(
             icon: Icons.how_to_reg_outlined,
             title: 'Auditions',
-            subtitle: 'No auditions active for this production',
+            subtitle: 'View and schedule audition calls for this production',
             theme: theme,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AuditionsScreen(
+                    initialProductionFilter: _production.id,
+                    showAppBar: true,
+                    productionService: _service,
+                    auditionService: widget.auditionService,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 10),
           _buildActivityRow(
