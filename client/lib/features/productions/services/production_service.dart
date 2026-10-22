@@ -67,16 +67,20 @@ class ProductionService {
   /// Streams productions from Cloud Firestore.
   /// Empty collections emit an empty list. Stream errors are propagated to the caller.
   Stream<List<Production>> streamProductions() {
-    return firestore.collection('productions').snapshots().map((snapshot) {
-      if (snapshot.docs.isEmpty) {
-        return <Production>[];
-      }
-      final list = snapshot.docs
-          .map((doc) => Production.fromFirestore(doc))
-          .toList();
-      _sortProductions(list);
-      return list;
-    });
+    try {
+      return firestore.collection('productions').snapshots().map((snapshot) {
+        if (snapshot.docs.isEmpty) {
+          return <Production>[];
+        }
+        final list = snapshot.docs
+            .map((doc) => Production.fromFirestore(doc))
+            .toList();
+        _sortProductions(list);
+        return list;
+      });
+    } catch (_) {
+      return Stream.value(<Production>[]);
+    }
   }
 
   /// Fetches production list from Firestore.

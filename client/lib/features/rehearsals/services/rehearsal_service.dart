@@ -259,27 +259,31 @@ class RehearsalService {
     String? productionId,
     String? venueId,
   }) {
-    return firestore.collection('rehearsals').snapshots().map((snapshot) {
-      final list = snapshot.docs
-          .map((doc) => Rehearsal.fromFirestore(doc))
-          .where((r) {
-            if (productionId != null && r.productionId != productionId) {
-              return false;
-            }
-            if (venueId != null) {
-              final target = normalizeVenue(venueId);
-              final matches = normalizeVenue(r.venueId) == target ||
-                  normalizeVenue(r.venueName) == target ||
-                  normalizeVenue(r.venue) == target;
-              if (!matches) return false;
-            }
-            return true;
-          })
-          .toList();
+    try {
+      return firestore.collection('rehearsals').snapshots().map((snapshot) {
+        final list = snapshot.docs
+            .map((doc) => Rehearsal.fromFirestore(doc))
+            .where((r) {
+              if (productionId != null && r.productionId != productionId) {
+                return false;
+              }
+              if (venueId != null) {
+                final target = normalizeVenue(venueId);
+                final matches = normalizeVenue(r.venueId) == target ||
+                    normalizeVenue(r.venueName) == target ||
+                    normalizeVenue(r.venue) == target;
+                if (!matches) return false;
+              }
+              return true;
+            })
+            .toList();
 
-      _sortRehearsalsChronologically(list);
-      return list;
-    });
+        _sortRehearsalsChronologically(list);
+        return list;
+      });
+    } catch (_) {
+      return Stream.value([]);
+    }
   }
 
   /// Fetches rehearsals for a specific production.

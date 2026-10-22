@@ -20,11 +20,13 @@ describe('Firestore Security Rules', function () {
   const OTHER_UID = 'other-user-2';
 
   before(async () => {
+    const hostPort = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8085';
+    const [host, portStr] = hostPort.split(':');
     testEnv = await initializeTestEnvironment({
       projectId: PROJECT_ID,
       firestore: {
-        host: '127.0.0.1',
-        port: 8080,
+        host: host || '127.0.0.1',
+        port: portStr ? parseInt(portStr, 10) : 8085,
         rules: fs.readFileSync(RULES_PATH, 'utf8'),
       },
     });
@@ -72,6 +74,24 @@ describe('Firestore Security Rules', function () {
         endTime: new Date('2026-11-02T14:00:00Z'),
         status: 'Scheduled',
         creatorUid: DIRECTOR_UID,
+      });
+      await db.collection('venues').doc('venue-existing').set({
+        name: 'Main Auditorium',
+        address: '100 Theatre Row',
+        capacity: 250,
+      });
+      await db.collection('cast_assignments').doc('cast-existing').set({
+        productionId: 'prod-existing',
+        userId: CAST_UID,
+        characterRole: 'Romeo',
+        actorName: 'Bob Actor',
+        status: 'Assigned',
+      });
+      await db.collection('notifications').doc('notif-existing').set({
+        recipientUid: CAST_UID,
+        title: 'Rehearsal Updated',
+        message: 'Rehearsal moved to 11am',
+        read: false,
       });
     });
   });
@@ -796,6 +816,236 @@ describe('Firestore Security Rules', function () {
         })
       );
       await assertFails(db.collection('auditions').doc('aud-existing').delete());
+    });
+  });
+
+  describe('12. Venues access control and validation', () => {
+    it('denies unauthenticated read and write access to venues', async () => {
+      const db = testEnv.unauthenticatedContext().firestore();
+      await assertFails(db.collection('venues').doc('venue-existing').get());
+      await assertFails(db.collection('venues').get());
+      await assertFails(
+        db.collection('venues').doc('venue-new').set({
+          name: 'Black Box Theatre',
+          capacity: 80,
+        })
+      );
+    });
+
+    it('allows authenticated users to read venues', async () => {
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(directorDb.collection('venues').doc('venue-existing').get());
+      await assertSucceeds(directorDb.collection('venues').get());
+      await assertSucceeds(castDb.collection('venues').doc('venue-existing').get());
+      await assertSucceeds(castDb.collection('venues').get());
+    });
+
+    it('denies Cast Member from creating, updating, or deleting venues', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('venues').doc('venue-new').set({
+          name: 'Cast Created Venue',
+          capacity: 50,
+        })
+      );
+      await assertFails(
+        db.collection('venues').doc('venue-existing').update({
+          capacity: 300,
+        })
+      );
+      await assertFails(db.collection('venues').doc('venue-existing').delete());
+    });
+
+    it('allows Director to create, update, and delete venues with valid capacity', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('venues').doc('venue-director').set({
+          name: 'Rehearsal Hall C',
+          capacity: 60,
+          address: '42 Main Street',
+        })
+      );
+      await assertSucceeds(
+        db.collection('venues').doc('venue-director').update({
+          capacity: 75,
+        })
+      );
+      await assertSucceeds(db.collection('venues').doc('venue-director').delete());
+    });
+
+    it('denies venue creation with non-positive capacity or empty name', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('venues').doc('venue-zero-cap').set({
+          name: 'Valid Name',
+          capacity: 0,
+        })
+      );
+      await assertFails(
+        db.collection('venues').doc('venue-neg-cap').set({
+          name: 'Valid Name',
+          capacity: -10,
+        })
+      );
+      await assertFails(
+        db.collection('venues').doc('venue-empty-name').set({
+          name: '',
+          capacity: 100,
+        })
+      );
+    });
+  });
+
+  describe('13. Cast assignments access control and validation', () => {
+    it('denies unauthenticated read and write access to cast assignments', async () => {
+      const db = testEnv.unauthenticatedContext().firestore();
+      await assertFails(db.collection('cast_assignments').doc('cast-existing').get());
+      await assertFails(db.collection('cast_assignments').get());
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-new').set({
+          productionId: 'prod-existing',
+          userId: CAST_UID,
+          characterRole: 'Juliet',
+          actorName: 'Jane Actress',
+          status: 'Assigned',
+        })
+      );
+    });
+
+    it('allows authenticated users to read cast assignments', async () => {
+      const directorDb = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(directorDb.collection('cast_assignments').doc('cast-existing').get());
+      await assertSucceeds(directorDb.collection('cast_assignments').get());
+      await assertSucceeds(castDb.collection('cast_assignments').doc('cast-existing').get());
+      await assertSucceeds(castDb.collection('cast_assignments').get());
+    });
+
+    it('denies Cast Member from creating, updating, or deleting cast assignments', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-member-hack').set({
+          productionId: 'prod-existing',
+          userId: CAST_UID,
+          characterRole: 'Hamlet',
+          actorName: 'Bob Actor',
+          status: 'Assigned',
+        })
+      );
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-existing').update({
+          characterRole: 'Mercutio',
+        })
+      );
+      await assertFails(db.collection('cast_assignments').doc('cast-existing').delete());
+    });
+
+    it('allows Director to create, update, and delete cast assignments with valid data', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('cast_assignments').doc('cast-dir-create').set({
+          productionId: 'prod-existing',
+          userId: CAST_UID,
+          characterRole: 'Tybalt',
+          actorName: 'Charlie Actor',
+          status: 'Confirmed',
+        })
+      );
+      await assertSucceeds(
+        db.collection('cast_assignments').doc('cast-dir-create').update({
+          status: 'Understudy',
+        })
+      );
+      await assertSucceeds(db.collection('cast_assignments').doc('cast-dir-create').delete());
+    });
+
+    it('denies cast assignment with empty role, production, or actor name', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-empty-role').set({
+          productionId: 'prod-existing',
+          userId: CAST_UID,
+          characterRole: '',
+          actorName: 'Valid Actor',
+          status: 'Assigned',
+        })
+      );
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-empty-prod').set({
+          productionId: '',
+          userId: CAST_UID,
+          characterRole: 'Valid Role',
+          actorName: 'Valid Actor',
+          status: 'Assigned',
+        })
+      );
+      await assertFails(
+        db.collection('cast_assignments').doc('cast-invalid-status').set({
+          productionId: 'prod-existing',
+          userId: CAST_UID,
+          characterRole: 'Valid Role',
+          actorName: 'Valid Actor',
+          status: 'UnknownStatus',
+        })
+      );
+    });
+  });
+
+  describe('14. Notifications access control and update', () => {
+    it('denies unauthenticated read and write access to notifications', async () => {
+      const db = testEnv.unauthenticatedContext().firestore();
+      await assertFails(db.collection('notifications').doc('notif-existing').get());
+      await assertFails(db.collection('notifications').get());
+      await assertFails(
+        db.collection('notifications').doc('notif-new').set({
+          title: 'Alert',
+          message: 'Message',
+          read: false,
+        })
+      );
+    });
+
+    it('allows authenticated users to read notifications', async () => {
+      const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(castDb.collection('notifications').doc('notif-existing').get());
+      await assertSucceeds(castDb.collection('notifications').get());
+    });
+
+    it('allows Director to create and delete notifications', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(
+        db.collection('notifications').doc('notif-dir').set({
+          recipientUid: 'all',
+          title: 'All-Hands Call',
+          message: 'Meeting at 6pm',
+          read: false,
+        })
+      );
+      await assertSucceeds(db.collection('notifications').doc('notif-dir').delete());
+    });
+
+    it('allows user to update read status on notifications', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(
+        db.collection('notifications').doc('notif-existing').update({
+          read: true,
+        })
+      );
+    });
+
+    it('denies user from altering notification title or message', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('notifications').doc('notif-existing').update({
+          title: 'Tampered Title',
+        })
+      );
+      await assertFails(
+        db.collection('notifications').doc('notif-existing').update({
+          message: 'Tampered Message',
+        })
+      );
     });
   });
 });

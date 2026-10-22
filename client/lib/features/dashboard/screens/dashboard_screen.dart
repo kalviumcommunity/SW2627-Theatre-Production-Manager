@@ -4,16 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:client/features/auditions/screens/auditions_screen.dart';
 import 'package:client/features/auditions/services/audition_service.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
+import 'package:client/features/cast/screens/cast_screen.dart';
+import 'package:client/features/cast/services/cast_service.dart';
 import 'package:client/features/dashboard/widgets/coming_soon_view.dart';
 import 'package:client/features/dashboard/widgets/dashboard_nav_item.dart';
 import 'package:client/features/dashboard/widgets/dashboard_navigation.dart';
 import 'package:client/features/dashboard/widgets/metric_card.dart';
 import 'package:client/features/dashboard/widgets/role_badge.dart';
 import 'package:client/features/dashboard/widgets/upcoming_rehearsals_card.dart';
+import 'package:client/features/notifications/screens/notifications_screen.dart';
+import 'package:client/features/notifications/services/notification_service.dart';
 import 'package:client/features/productions/screens/productions_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
 import 'package:client/features/rehearsals/screens/rehearsals_screen.dart';
 import 'package:client/features/rehearsals/services/rehearsal_service.dart';
+import 'package:client/features/schedules/screens/master_schedule_screen.dart';
+import 'package:client/features/schedules/services/schedule_service.dart';
+import 'package:client/features/venues/screens/venues_screen.dart';
+import 'package:client/features/venues/services/venue_service.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
 
@@ -23,6 +31,10 @@ class DashboardScreen extends StatefulWidget {
   final ProductionService? productionService;
   final RehearsalService? rehearsalService;
   final AuditionService? auditionService;
+  final CastService? castService;
+  final VenueService? venueService;
+  final ScheduleService? scheduleService;
+  final NotificationService? notificationService;
 
   const DashboardScreen({
     super.key,
@@ -31,6 +43,10 @@ class DashboardScreen extends StatefulWidget {
     this.productionService,
     this.rehearsalService,
     this.auditionService,
+    this.castService,
+    this.venueService,
+    this.scheduleService,
+    this.notificationService,
   });
 
   @override
@@ -40,6 +56,26 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late final AuthService _authService;
   late final UserService _userService;
+  ProductionService get _productionService =>
+      widget.productionService ?? ProductionService();
+  RehearsalService get _rehearsalService =>
+      widget.rehearsalService ?? RehearsalService();
+  AuditionService get _auditionService =>
+      widget.auditionService ?? AuditionService();
+  CastService get _castService =>
+      widget.castService ?? CastService();
+  VenueService get _venueService =>
+      widget.venueService ?? VenueService();
+  ScheduleService get _scheduleService =>
+      widget.scheduleService ??
+      ScheduleService(
+        productionService: _productionService,
+        rehearsalService: _rehearsalService,
+        auditionService: _auditionService,
+        castService: _castService,
+      );
+  NotificationService get _notificationService =>
+      widget.notificationService ?? NotificationService();
 
   int _selectedNavIndex = 0;
   bool _isLoggingOut = false;
@@ -184,35 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 if (isWideScreen) _buildDesktopTopBar(theme),
                 Expanded(
-                  child: _selectedNavIndex == 0
-                      ? _buildDashboardView(theme)
-                      : _selectedNavIndex == 1
-                      ? ProductionsScreen(
-                          showAppBar: false,
-                          productionService: widget.productionService,
-                        )
-                      : (_selectedNavIndex == 2 &&
-                            widget.auditionService != null)
-                      ? AuditionsScreen(
-                          showAppBar: false,
-                          auditionService: widget.auditionService,
-                          productionService: widget.productionService,
-                        )
-                      : _selectedNavIndex == 4
-                      ? RehearsalsScreen(
-                          showAppBar: false,
-                          rehearsalService: widget.rehearsalService,
-                          productionService: widget.productionService,
-                        )
-                      : ComingSoonView(
-                          title:
-                              '${kDashboardNavItems[_selectedNavIndex].label} Module',
-                          description:
-                              kDashboardNavItems[_selectedNavIndex].description,
-                          icon: kDashboardNavItems[_selectedNavIndex]
-                              .selectedIcon,
-                          onBackToDashboard: () => _onNavigateTo(0),
-                        ),
+                  child: _buildNavBody(theme),
                 ),
               ],
             ),
@@ -220,6 +228,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildNavBody(ThemeData theme) {
+    switch (_selectedNavIndex) {
+      case 0:
+        return _buildDashboardView(theme);
+      case 1:
+        return ProductionsScreen(
+          showAppBar: false,
+          productionService: _productionService,
+        );
+      case 2:
+        return AuditionsScreen(
+          showAppBar: false,
+          auditionService: _auditionService,
+          productionService: _productionService,
+        );
+      case 3:
+        return CastScreen(
+          showAppBar: false,
+          castService: _castService,
+          productionService: _productionService,
+          authService: _authService,
+          userService: _userService,
+        );
+      case 4:
+        return RehearsalsScreen(
+          showAppBar: false,
+          rehearsalService: _rehearsalService,
+          productionService: _productionService,
+        );
+      case 5:
+        return VenuesScreen(
+          showAppBar: false,
+          venueService: _venueService,
+          authService: _authService,
+          userService: _userService,
+        );
+      case 6:
+        return MasterScheduleScreen(
+          showAppBar: false,
+          scheduleService: _scheduleService,
+          authService: _authService,
+          userService: _userService,
+          productionService: _productionService,
+          rehearsalService: _rehearsalService,
+          auditionService: _auditionService,
+        );
+      case 7:
+        return NotificationsScreen(
+          showAppBar: false,
+          notificationService: _notificationService,
+          authService: _authService,
+        );
+      default:
+        return ComingSoonView(
+          title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
+          description: kDashboardNavItems[_selectedNavIndex].description,
+          icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
+          onBackToDashboard: () => _onNavigateTo(0),
+        );
+    }
   }
 
   PreferredSizeWidget _buildMobileAppBar(ThemeData theme) {

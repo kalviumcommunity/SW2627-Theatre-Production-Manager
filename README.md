@@ -86,9 +86,9 @@ The Flutter application communicates directly with Firebase services. The intend
 
 | Member | Role in this stage |
 |---|---|
-| Vidit | Repository foundation, README, project structure, initial documentation |
-| Himesh | Problem analysis |
-| Ayushman | Team member (no contribution in this stage) |
+| Vidit | Repository foundation, README, project structure, Backend Production Services |
+| Himesh | Problem analysis, Initial Documentation |
+| Ayushman | Managed Audition, Integrated Rehearsal and its backend, Improve Firestore-Security |
 
 Team 02, Squad 124, JECRC campus.
 
