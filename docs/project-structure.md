@@ -1,129 +1,108 @@
 # Project Structure
 
-This document describes the **planned** repository structure for a Flutter and Firebase application. It is a plan, not a description of existing code. At this stage the repository contains documentation only; the Flutter project has not been created. Directories will be added as they are needed, and this document should be updated if the structure changes.
+This document describes the repository structure for the Theatre Production Manager Flutter and Firebase application. The application source code is organized within the `client/` directory, automated Firestore security rules tests in `test/`, and project documentation in `docs/`.
 
-## Planned Repository Layout
+## Repository Layout
 
 ```text
 SW2627-Theatre-Production-Manager/
 │
-├── lib/
-│   ├── core/
-│   │   ├── constants/
-│   │   ├── theme/
-│   │   ├── routing/
-│   │   └── utils/
+├── client/                               # Flutter client application
+│   ├── lib/
+│   │   ├── core/                         # Shared utilities, constants, theme
+│   │   ├── features/                     # Feature-first modular architecture
+│   │   │   ├── auth/                     # Authentication screens, widgets, & forms
+│   │   │   ├── dashboard/                # Responsive dashboard & navigation rail/bar
+│   │   │   ├── productions/              # Production management (models, screens, services, widgets)
+│   │   │   ├── auditions/                # Audition management (models, screens, services, widgets)
+│   │   │   ├── cast/                     # Cast roster & role assignment (models, screens, services, widgets)
+│   │   │   ├── rehearsals/               # Rehearsal scheduling & timelines (models, screens, services, widgets)
+│   │   │   ├── venues/                   # Venue management & conflict checks (models, screens, services, widgets)
+│   │   │   ├── schedules/                # Consolidated master schedule (models, screens, services, widgets)
+│   │   │   └── notifications/            # In-app notifications & push token registration
+│   │   ├── models/                       # Common domain models
+│   │   ├── services/                     # Core services (AuthService, UserService)
+│   │   ├── widgets/                      # Shared reusable UI components
+│   │   └── main.dart                     # Application bootstrap & entry point
 │   │
-│   ├── models/
+│   ├── test/                             # Automated test suite (186 tests)
+│   │   ├── features/                     # Feature-specific widget & unit tests
+│   │   │   ├── auditions/
+│   │   │   ├── cast/
+│   │   │   ├── notifications/
+│   │   │   ├── productions/
+│   │   │   ├── rehearsals/
+│   │   │   ├── schedules/
+│   │   │   └── venues/
+│   │   └── widget_test.dart              # Core navigation, login, and registration flow tests
 │   │
-│   ├── services/
-│   │
-│   ├── features/
-│   │   ├── authentication/
-│   │   ├── productions/
-│   │   ├── auditions/
-│   │   ├── cast/
-│   │   ├── rehearsals/
-│   │   ├── venues/
-│   │   ├── schedules/
-│   │   └── notifications/
-│   │
-│   ├── widgets/
-│   └── main.dart
+│   ├── firestore.rules                   # Production Firestore security access rules
+│   ├── pubspec.yaml                      # Flutter dependencies and assets
+│   ├── android/, ios/, linux/, ...       # Platform build targets
+│   └── README.md
 │
 ├── test/
+│   └── firestore.rules.test.js           # Firestore security rules emulator test suite
 │
-├── docs/
-│   ├── problem-statement.md
-│   ├── problem-analysis.md
-│   └── project-structure.md
+├── docs/                                 # Project documentation
+│   ├── problem-statement.md              # Problem definition & boundary context
+│   ├── problem-analysis.md              # Requirements, constraints, and MVP mapping
+│   ├── project-structure.md              # Repository architecture & directory guide
+│   └── app-requirements.md               # Detailed app specifications & user roles
 │
-├── android/
-├── ios/
-├── web/
-│
-├── firebase.json
-├── pubspec.yaml
-├── README.md
-└── .gitignore
+├── firebase.json                         # Firebase CLI and emulator configuration
+├── package.json                          # Rules testing runner configuration
+├── README.md                             # Project overview and status
+└── .gitignore                            # Version control exclusion rules
 ```
 
 ## Directory Purposes
 
 | Path | Purpose |
 |---|---|
-| `lib/` | All Dart source code for the application. |
-| `lib/main.dart` | Application entry point. |
-| `lib/core/` | Shared, non-feature-specific code: constants, theme, navigation/routing setup, and small utility helpers such as date and time formatting. |
-| `lib/models/` | Plain Dart data classes for domain entities (for example production, audition, rehearsal, venue), including conversion to and from Firestore documents. |
-| `lib/services/` | Classes that talk to Firebase. See "Where Firebase Code Lives" below. |
-| `lib/features/` | One folder per functional area, containing that area's screens and feature-specific widgets. |
-| `lib/widgets/` | Reusable UI components shared across several features. |
-| `test/` | Automated Dart and Flutter tests. |
-| `docs/` | Project documentation. |
-| `android/`, `ios/`, `web/` | Platform folders generated by Flutter. They are edited only when platform configuration requires it. |
-| `firebase.json` | Firebase project configuration file. |
-| `pubspec.yaml` | Dart package manifest listing dependencies and assets. |
-| `README.md` | Project overview and entry point to the documentation. |
-| `.gitignore` | Files excluded from version control. |
+| `client/lib/` | Dart source code for the Flutter application. |
+| `client/lib/main.dart` | Application entry point and Firebase initialization. |
+| `client/lib/core/` | Shared non-feature-specific code: constants, theme, responsive helpers. |
+| `client/lib/features/` | Feature-first modular packages containing screens, widgets, models, and services for each functional module. |
+| `client/lib/services/` | Global application-level services (`AuthService`, `UserService`). |
+| `client/lib/widgets/` | Reusable UI components shared across multiple features. |
+| `client/test/` | Automated unit, widget, and integration tests for all Flutter features. |
+| `client/firestore.rules` | Security rules enforcing role-based access for Firestore collections. |
+| `test/` | Mocha and Firebase Emulator tests validating Firestore security rules. |
+| `docs/` | Project analysis, requirements, and design documentation. |
+| `firebase.json` | Emulator and hosting configuration. |
+| `pubspec.yaml` | Flutter package manifest listing dependencies and assets. |
+| `README.md` | Primary project documentation and team contribution details. |
 
-## Feature Folders
+## Feature Modules
 
-Each folder under `lib/features/` corresponds to a planned module, plus authentication as a supporting capability.
+Each folder under `client/lib/features/` encapsulates a domain module:
 
-| Folder | Corresponds to |
-|---|---|
-| `authentication/` | Sign-in and user session handling (Firebase Authentication) |
-| `productions/` | Production Management |
-| `auditions/` | Audition Management |
-| `cast/` | Cast Management |
-| `rehearsals/` | Rehearsal Scheduling |
-| `venues/` | Venue Management |
-| `schedules/` | Schedule / Commitment Management |
-| `notifications/` | Notifications |
+| Folder | Responsibility | Key Components |
+|---|---|---|
+| `auth/` | Sign-in, user registration, role selection | `LoginScreen`, `RegisterScreen` |
+| `dashboard/` | Responsive navigation shell, metrics, quick actions | `DashboardScreen`, `DashboardNavigation` |
+| `productions/` | Shows, dates, and production lifecycle | `ProductionService`, `ProductionsScreen`, `ProductionDetailsScreen` |
+| `auditions/` | Audition sessions, slots, and casting notices | `AuditionService`, `AuditionsScreen`, `AddEditAuditionScreen` |
+| `cast/` | Cast rosters, role assignments, understudy tracking | `CastService`, `CastScreen`, `AssignCastScreen` |
+| `rehearsals/` | Rehearsal scheduling, chronological timelines, run notes | `RehearsalService`, `RehearsalsScreen`, `AddRehearsalScreen` |
+| `venues/` | Theatre spaces, seat capacities, conflict detection | `VenueService`, `VenuesScreen`, `AddEditVenueScreen` |
+| `schedules/` | Consolidated calendar across rehearsals and auditions | `ScheduleService`, `MasterScheduleScreen` |
+| `notifications/` | Real-time alerts, schedule changes, read tracking | `NotificationService`, `NotificationsScreen` |
 
-To keep the structure light, a feature folder starts with only the subfolders it needs. A typical layout is:
+## Service Architecture & Firestore Interaction
 
-```text
-features/rehearsals/
-├── screens/     # full-page UI
-└── widgets/     # UI used only by this feature
-```
-
-Additional subfolders (for example for state handling) may be added if the team agrees on an approach. No state management package has been decided at this stage.
-
-## Where Firebase Code Lives
-
-All direct Firebase access is planned to live in `lib/services/`, so that screens do not call Firebase APIs directly.
-
-| Planned service | Responsibility |
-|---|---|
-| Authentication service | Sign-in, sign-out, and current-user access via Firebase Authentication |
-| Firestore service(s) | Reading and writing Cloud Firestore data for the domain models |
-| Messaging service | Receiving and handling notifications via Firebase Cloud Messaging |
-
-Firebase initialization is planned to happen at startup in `main.dart`. Any Firebase configuration file generated by FlutterFire tooling would also be placed under `lib/`.
-
-## Dependency Direction
+Firebase access is encapsulated in service classes within each feature module and core services:
 
 ```mermaid
 flowchart TD
-    A[features - screens and feature widgets] --> B[services]
-    A --> C[widgets - shared UI]
-    A --> D[models]
-    B --> D
-    A --> E[core]
-    B --> E
+    UI[Feature Screens & Widgets] --> Services[Service Classes - VenueService, CastService, etc.]
+    Services --> Firestore[(Cloud Firestore)]
+    Services --> Auth[(Firebase Authentication)]
+    Services --> FCM[(Firebase Cloud Messaging)]
+    Firestore --> Rules[Firestore Security Rules]
 ```
 
-Guidelines that follow from this:
-
-- Features may use services, models, shared widgets, and core.
-- Services and models must not depend on features.
-- One feature should not import another feature's internals. Shared logic moves to `services/`, `models/`, or `core/`.
-
-## Notes
-
-- The structure is deliberately simple and suited to a small team. Layers such as separate domain and data packages are not planned.
-- No custom backend directory is planned. Backend behaviour is provided by Firebase services.
-- The `docs/` folder is edited through the same branch and Pull Request workflow as code (see the README).
+- **Separation of Concerns**: Screens communicate with service classes, which handle business logic, data validation, and Firestore queries.
+- **Testability**: Service instances can be injected into screens or mocked in tests using fake implementations.
+- **Security**: All Firestore access is governed by security rules in `client/firestore.rules` verifying user roles (Director vs Cast Member).
