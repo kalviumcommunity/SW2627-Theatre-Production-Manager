@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
 import 'package:client/features/auth/screens/register_screen.dart';
+import 'package:client/features/auditions/screens/auditions_screen.dart';
 import 'package:client/features/dashboard/screens/dashboard_screen.dart';
 import 'package:client/features/productions/screens/productions_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
@@ -476,7 +477,7 @@ void main() {
       expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
     });
 
-    testWidgets('navigates to module placeholder and back to dashboard', (WidgetTester tester) async {
+    testWidgets('navigates to Auditions module when Auditions is tapped', (WidgetTester tester) async {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
 
@@ -484,15 +485,7 @@ void main() {
       await tester.tap(find.text('Auditions'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Auditions Module'), findsOneWidget);
-      expect(find.text('COMING SOON'), findsOneWidget);
-
-      // Tap Back to Dashboard
-      await tester.tap(find.text('Back to Dashboard'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Total Productions'), findsOneWidget);
-      expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
+      expect(find.byType(AuditionsScreen), findsOneWidget);
     });
 
     testWidgets('navigates to Productions module when Total Productions is tapped', (WidgetTester tester) async {

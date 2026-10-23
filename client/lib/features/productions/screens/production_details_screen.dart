@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../auditions/screens/auditions_screen.dart';
 import '../../auditions/services/audition_service.dart';
+import '../../cast/screens/cast_screen.dart';
 import '../../rehearsals/screens/rehearsals_screen.dart';
 import '../../rehearsals/services/rehearsal_service.dart';
 import '../models/production_model.dart';
@@ -464,8 +465,19 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           _buildActivityRow(
             icon: Icons.groups_outlined,
             title: 'Cast & Crew',
-            subtitle: 'Actor role assignments will be listed here',
+            subtitle: 'View and manage cast roster & character roles for this production',
             theme: theme,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => CastScreen(
+                    initialProductionFilter: _production.id,
+                    showAppBar: true,
+                    productionService: _service,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

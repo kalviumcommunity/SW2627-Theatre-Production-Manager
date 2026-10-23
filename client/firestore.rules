@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -123,5 +122,73 @@ service cloud.firestore {
 
       allow delete: if isDirector();
     }
-}
+
+    match /venues/{venueId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isDirector()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.capacity is int
+        && request.resource.data.capacity > 0;
+
+      allow update: if isDirector()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.capacity is int
+        && request.resource.data.capacity > 0;
+
+      allow delete: if isDirector();
+    }
+
+    match /cast_assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isDirector()
+        && request.resource.data.productionId is string
+        && request.resource.data.productionId.size() > 0
+        && request.resource.data.userId is string
+        && request.resource.data.userId.size() > 0
+        && request.resource.data.characterRole is string
+        && request.resource.data.characterRole.size() > 0
+        && request.resource.data.actorName is string
+        && request.resource.data.actorName.size() > 0
+        && request.resource.data.status in ['Assigned', 'Confirmed', 'Understudy', 'Invited'];
+
+      allow update: if isDirector()
+        && request.resource.data.productionId is string
+        && request.resource.data.productionId.size() > 0
+        && request.resource.data.userId is string
+        && request.resource.data.userId.size() > 0
+        && request.resource.data.characterRole is string
+        && request.resource.data.characterRole.size() > 0
+        && request.resource.data.actorName is string
+        && request.resource.data.actorName.size() > 0
+        && request.resource.data.status in ['Assigned', 'Confirmed', 'Understudy', 'Invited'];
+
+      allow delete: if isDirector();
+    }
+
+    match /cast_members/{memberId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (isDirector() || request.auth.uid == memberId);
+      allow delete: if isDirector();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isDirector();
+
+      allow update: if isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
+
+      allow delete: if isDirector();
+    }
+
+    match /user_tokens/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
 }
