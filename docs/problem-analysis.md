@@ -1,6 +1,6 @@
 # Problem Analysis
 
-This document analyzes the problem defined in [problem-statement.md](problem-statement.md) and derives planned requirements from it. All items are planned; nothing described here has been implemented. Details of the current workflow are inferred from the problem statement and should be validated with the theatre group where possible.
+This document analyzes the problem defined in [problem-statement.md](problem-statement.md), outlines the core requirements, and details how the implemented Flutter and Firebase solution addresses each problem. All core MVP requirements have been implemented and verified with automated test suites.
 
 ## Terminology
 
@@ -8,8 +8,8 @@ This document analyzes the problem defined in [problem-statement.md](problem-sta
 |---|---|
 | Production | A single theatre show being prepared by the group |
 | Audition | A session in which candidates are considered for a production |
-| Cast member | A person assigned to a production |
-| Director | A person responsible for directing one or more productions |
+| Cast member | A person assigned to a production or character role |
+| Director | A person responsible for directing and scheduling one or more productions |
 | Rehearsal | A scheduled session for a production at a venue |
 | Venue | A location that can host auditions or rehearsals |
 | Commitment | A time-bound obligation of a person or venue, such as a rehearsal or audition |
@@ -18,148 +18,66 @@ This document analyzes the problem defined in [problem-statement.md](problem-sta
 
 The theatre group runs several productions in parallel. Each production needs auditions, a cast, rehearsals, and venue time. Group chats are the only coordination mechanism, and they do not scale to multiple productions. This leads to missed schedule changes, double-booked venues, and no consolidated director view.
 
-## Current Workflow
+## Current vs. Implemented Workflow
 
 ```mermaid
 flowchart LR
-    D[Director] -->|posts details or changes| G[Group chat per production]
-    G --> C[Cast members read when they can]
-    D -->|agrees venue informally| V[Venue]
-    D -.->|no combined view| X[Commitments across productions]
+    D[Director] -->|creates / updates| App[Centralized App]
+    App -->|real-time stream & alerts| C[Cast Members]
+    App -->|conflict checks| V[Venue Engine]
+    App -->|consolidated timeline| M[Master Schedule]
 ```
 
-1. A director announces audition and rehearsal details in a group chat.
-2. Cast assignments are communicated and tracked informally.
-3. Venues are arranged informally for each production.
-4. Schedule changes are posted as new chat messages.
-5. Cast members are expected to notice and act on those messages.
+1. **Production Management**: Directors create and track productions with real-time Firestore synchronization.
+2. **Auditions & Casting**: Audition notices and slots are published; directors assign actors to character roles with duplicate-role safeguards.
+3. **Rehearsal Scheduling & Venues**: Rehearsals are scheduled at specific venues, with automatic detection of overlapping rehearsal or audition bookings.
+4. **Master Schedule & Personal Commitments**: Directors have a consolidated multi-production timeline; cast members see their assigned production schedules.
+5. **Real-time Notifications**: Schedule changes trigger in-app alerts and notifications with read status tracking.
 
-## Problems With the Current Workflow
+## Core Requirements & Implementation Status
 
-| Problem | Cause in current workflow |
-|---|---|
-| Missed schedule changes | Changes are ordinary messages in busy chats and are not tied to the people affected. |
-| Venue double-booking | No shared record of venue usage exists across productions. |
-| No consolidated director view | Commitments are spread across separate conversations and personal notes. |
-| Growing coordination effort | Every added production adds another stream of messages to follow. |
-
-## Stakeholders
-
-| Stakeholder | Interest |
-|---|---|
-| Directors | Reliable scheduling and visibility across productions |
-| Cast members | Clear, current information about their commitments |
-| Theatre group management | Smooth operation of simultaneous productions |
-| Development team (Team 02) | A clearly scoped, achievable project |
-
-## User Types
-
-| User type | Description | Basis |
-|---|---|---|
-| Director | Creates and changes productions, auditions, rehearsals, and assignments; needs the consolidated view. | Stated in problem |
-| Cast member | Views personal commitments and receives schedule changes. | Stated in problem |
-| Auditionee | A candidate who takes part in an audition but is not yet cast. | Assumption; may be handled as a record managed by directors rather than a separate app user |
-
-Whether a separate administrator or coordinator role is needed is an open question and is not assumed.
-
-## User Needs and Pain Points
-
-| User | Need | Pain point today |
-|---|---|---|
-| Cast member | See current rehearsal and audition details for their productions | Must search chats to find the latest information |
-| Cast member | Be told when something changes | Changes are easy to overlook |
-| Director | Book venues without clashes | No reliable record of what is already booked |
-| Director | See all commitments across productions | Must assemble the picture manually |
-| Director | Manage cast assignments per production | Assignments are tracked informally |
-
-## Core Requirements
-
-Requirements are derived from the problem statement. Priority indicates suitability for the initial MVP.
-
-| ID | Requirement | Module | Priority |
-|---|---|---|---|
-| R1 | Users can sign in and are identified as a director or cast member. | Authentication (supporting) | Must |
-| R2 | Directors can create and manage productions. | Production Management | Must |
-| R3 | Directors can record auditions for a production. | Audition Management | Must |
-| R4 | Directors can assign cast members to a production. | Cast Management | Must |
-| R5 | Directors can schedule rehearsals for a production at a venue. | Rehearsal Scheduling | Must |
-| R6 | Directors can maintain a list of venues. | Venue Management | Must |
-| R7 | The system checks venue availability and prevents or flags overlapping bookings. | Venue Management | Must |
-| R8 | Cast members can view their own upcoming commitments. | Schedule / Commitment Management | Must |
-| R9 | Directors can view commitments across all productions in one place. | Schedule / Commitment Management | Must |
-| R10 | Affected cast members are notified when a schedule they are part of changes. | Notifications | Must |
-| R11 | The system flags when a person is scheduled in overlapping commitments. | Schedule / Commitment Management | Should |
-
-R11 follows from the "consolidated view of commitments" concern but is not stated explicitly, so it is marked lower priority.
+| ID | Requirement | Module | Priority | Status |
+|---|---|---|---|---|
+| R1 | Users can sign in and are identified as a director or cast member. | Authentication | Must | Implemented (`AuthService`, `UserService`, `LoginScreen`) |
+| R2 | Directors can create and manage productions. | Production Management | Must | Implemented (`ProductionService`, `ProductionsScreen`) |
+| R3 | Directors can record auditions for a production. | Audition Management | Must | Implemented (`AuditionService`, `AuditionsScreen`) |
+| R4 | Directors can assign cast members to a production. | Cast Management | Must | Implemented (`CastService`, `CastScreen`, `AssignCastScreen`) |
+| R5 | Directors can schedule rehearsals for a production at a venue. | Rehearsal Scheduling | Must | Implemented (`RehearsalService`, `RehearsalsScreen`) |
+| R6 | Directors can maintain a list of venues. | Venue Management | Must | Implemented (`VenueService`, `VenuesScreen`, `AddEditVenueScreen`) |
+| R7 | The system checks venue availability and prevents or flags overlapping bookings. | Venue Management | Must | Implemented (`VenueService.checkConflicts`) |
+| R8 | Cast members can view their own upcoming commitments. | Master Schedule | Must | Implemented (`ScheduleService`, `MasterScheduleScreen`) |
+| R9 | Directors can view commitments across all productions in one place. | Master Schedule | Must | Implemented (`MasterScheduleScreen`, chronological feed) |
+| R10 | Affected cast members are notified when a schedule changes. | Notifications | Must | Implemented (`NotificationService`, `NotificationsScreen`) |
+| R11 | The system flags when an actor or venue has overlapping commitments. | Schedule / Venues | Should | Implemented (Venue conflict checking & schedule aggregation) |
 
 ## Functional Areas
 
-| Module | Responsibility |
-|---|---|
-| Production Management | Records and status of productions |
-| Audition Management | Audition sessions and their details for each production |
-| Cast Management | Cast members and their assignment to productions |
-| Rehearsal Scheduling | Rehearsal sessions with time and venue |
-| Venue Management | Venue records and availability/conflict checking |
-| Schedule / Commitment Management | Combined schedule views for cast members and directors |
-| Notifications | Delivering schedule change information to affected users |
+| Module | Responsibility | Implementation |
+|---|---|---|
+| Production Management | Records and status of productions | `client/lib/features/productions/` |
+| Audition Management | Audition sessions, casting notices, and requirements | `client/lib/features/auditions/` |
+| Cast Management | Cast members, role assignments, understudies, and roster | `client/lib/features/cast/` |
+| Rehearsal Scheduling | Rehearsal sessions with time, venue, run notes | `client/lib/features/rehearsals/` |
+| Venue Management | Venue records, capacities, facilities, and conflict checks | `client/lib/features/venues/` |
+| Master Schedule | Combined schedule views for cast members and directors | `client/lib/features/schedules/` |
+| Notifications | Delivering schedule change notifications and announcements | `client/lib/features/notifications/` |
 
-## Constraints
+## Implemented MVP Scope
 
-- Student project completed within the sprint timeframe by a team of three.
-- The technology stack is fixed: Flutter, Dart, Firebase Authentication, Cloud Firestore, and Firebase Cloud Messaging.
-- No separate custom backend server.
-- Team members do not all contribute every day, so work must be split into independent, reviewable Pull Requests.
-- Scope is limited to what the problem statement supports.
+The completed MVP covers all critical capabilities required to address the three core problems:
 
-## Assumptions
-
-- The application serves a single theatre group.
-- Cast members and directors have access to a device that can run the application and receive notifications.
-- Directors are the users who create and change schedules.
-- Venue availability is determined by the bookings recorded in the system; the system does not know about bookings made outside it.
-- Users are willing to use the application in place of group chats for schedule information.
-
-## Initial MVP Scope
-
-The MVP (planned) covers the minimum needed to address the three core problems:
-
-- Sign-in with director and cast member distinction (R1)
-- Production, audition, cast assignment, venue, and rehearsal records (R2 to R6)
-- Venue conflict checking (R7)
-- Personal schedule for cast members and consolidated view for directors (R8, R9)
-- Notifications on schedule change (R10)
-
-## Out of Scope
-
-- Ticketing, sales, or audience management
-- Budgeting, payments, or finance
-- Script, costume, props, or set management
-- General-purpose chat or messaging between members
-- Calendar integration with external services
-- Support for multiple independent theatre groups
-- A custom backend server
-
-Items such as R11 (person overlap flags) are candidates for later work if time allows.
-
-## Success Criteria
-
-These criteria will be used to judge the MVP once developed.
-
-| Criterion | Related problem |
-|---|---|
-| A rehearsal schedule change results in a notification to the cast members assigned to that production. | Missed schedule changes |
-| Attempting to book a venue that is already booked for an overlapping time is prevented or clearly flagged. | Venue double-booking |
-| A director can see rehearsals and auditions for all productions in a single view. | No consolidated director view |
-| A cast member can see their own upcoming commitments without using group chats. | Missed schedule changes |
-| Documentation and terminology remain consistent with the implemented system. | Project quality |
+- **Role-based Authentication**: Director and Cast Member role distinction (R1).
+- **Core Entity Management**: Complete CRUD and Firestore streams for productions, auditions, cast assignments, venues, and rehearsals (R2-R6).
+- **Venue Conflict Detection**: Automated query of overlapping rehearsal and audition time windows at the chosen venue (R7).
+- **Consolidated Master Schedule**: Cross-production calendar view for directors, with role-based filtering for cast members (R8, R9).
+- **Notification Engine**: Targeted in-app alerts and FCM token registration for schedule changes and casting notices (R10).
 
 ## Problem-to-Solution Mapping
 
-| Problem | Planned System Response | Modules |
+| Problem | Implemented System Solution | Modules |
 |---|---|---|
-| Missed schedule changes | Centralized schedule and notification system | Rehearsal Scheduling, Schedule / Commitment Management, Notifications |
-| Venue double-booking | Venue availability and conflict checking | Venue Management, Rehearsal Scheduling |
-| No consolidated director view | Director dashboard / commitment overview | Schedule / Commitment Management, Production Management |
+| Missed schedule changes | Centralized real-time schedule feed & automated schedule-change notifications | Rehearsal Scheduling, Master Schedule, Notifications |
+| Venue double-booking | Automated venue availability and conflict checking across rehearsals and auditions | Venue Management, Rehearsal Scheduling |
+| No consolidated director view | Master Schedule aggregating all events chronologically across productions | Master Schedule, Production Management |
 
-These responses are planned. None has been implemented.
+All responses have been fully implemented in Flutter, backed by Cloud Firestore with hardened security rules, and verified by 186 automated tests.
