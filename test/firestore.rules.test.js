@@ -93,6 +93,12 @@ describe('Firestore Security Rules', function () {
         message: 'Rehearsal moved to 11am',
         read: false,
       });
+      await db.collection('notifications').doc('notif-private-other').set({
+        recipientUid: OTHER_UID,
+        title: 'Private rehearsal note',
+        message: 'Only the assigned recipient should see this',
+        read: false,
+      });
     });
   });
 
@@ -1006,10 +1012,36 @@ describe('Firestore Security Rules', function () {
       );
     });
 
-    it('allows authenticated users to read notifications', async () => {
+    it('allows users to read their own and global notifications, but not another user\'s', async () => {
       const castDb = testEnv.authenticatedContext(CAST_UID).firestore();
       await assertSucceeds(castDb.collection('notifications').doc('notif-existing').get());
-      await assertSucceeds(castDb.collection('notifications').get());
+      await assertFails(
+        castDb.collection('notifications').doc('notif-private-other').get()
+      );
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await context.firestore().collection('notifications').doc('notif-global').set({
+          recipientUid: 'all',
+          title: 'Announcement',
+          message: 'Everyone can see this',
+          read: false,
+          readBy: [],
+        });
+      });
+      await assertSucceeds(castDb.collection('notifications').doc('notif-global').get());
+      await assertSucceeds(
+        castDb.collection('notifications')
+          .where('recipientUid', 'in', [CAST_UID, 'all']).get()
+      );
+      await assertSucceeds(
+        castDb.collection('notifications').doc('notif-global').update({
+          readBy: [CAST_UID],
+        })
+      );
+      await assertFails(
+        castDb.collection('notifications').doc('notif-global').update({
+          readBy: [CAST_UID, OTHER_UID],
+        })
+      );
     });
 
     it('allows Director to create and delete notifications', async () => {
@@ -1034,6 +1066,13 @@ describe('Firestore Security Rules', function () {
       );
     });
 
+    it('denies a user from changing another recipient\'s notification read state', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertFails(
+        db.collection('notifications').doc('notif-private-other').update({read: true})
+      );
+    });
+
     it('denies user from altering notification title or message', async () => {
       const db = testEnv.authenticatedContext(CAST_UID).firestore();
       await assertFails(
@@ -1046,6 +1085,20 @@ describe('Firestore Security Rules', function () {
           message: 'Tampered Message',
         })
       );
+    });
+  });
+
+  describe('15. Cast member directory privacy', () => {
+    it('allows a cast member to read only their own directory record', async () => {
+      const db = testEnv.authenticatedContext(CAST_UID).firestore();
+      await assertSucceeds(db.collection('cast_members').doc(CAST_UID).get());
+      await assertFails(db.collection('cast_members').doc(OTHER_UID).get());
+      await assertFails(db.collection('cast_members').get());
+    });
+
+    it('allows directors to read the cast member directory', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertSucceeds(db.collection('cast_members').get());
     });
   });
 });
