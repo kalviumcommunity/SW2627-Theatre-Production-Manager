@@ -170,19 +170,37 @@ service cloud.firestore {
     }
 
     match /cast_members/{memberId} {
-      allow read: if isAuthenticated();
+      // The directory contains email addresses, so only directors and the
+      // profile owner may read a cast member's record.
+      allow read: if isAuthenticated()
+        && (isDirector() || request.auth.uid == memberId);
       allow create, update: if isAuthenticated() && (isDirector() || request.auth.uid == memberId);
       allow delete: if isDirector();
     }
 
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated();
+      // Global announcements are intentionally visible to every signed-in
+      // user; private notifications are visible only to their recipient.
+      allow read: if isAuthenticated()
+        && (resource.data.recipientUid == 'all'
+          || resource.data.recipientUid == request.auth.uid);
 
       allow create: if isDirector();
 
       allow update: if isAuthenticated()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
-        && request.resource.data.read is bool;
+        && (
+          (resource.data.recipientUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+            && request.resource.data.read is bool)
+          || (resource.data.recipientUid == 'all'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+            && request.resource.data.readBy is list
+            && request.resource.data.readBy.hasAll(resource.data.get('readBy', []))
+            && request.resource.data.readBy.size()
+              == resource.data.get('readBy', []).size()
+                + (resource.data.get('readBy', []).hasAny([request.auth.uid]) ? 0 : 1)
+            && request.resource.data.readBy.hasAny([request.auth.uid]))
+        );
 
       allow delete: if isDirector();
     }

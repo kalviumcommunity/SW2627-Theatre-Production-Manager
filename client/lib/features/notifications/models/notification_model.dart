@@ -59,13 +59,18 @@ class AppNotification {
       'type': type,
       if (relatedId != null) 'relatedId': relatedId!.trim(),
       'read': read,
+      if (recipientUid.trim() == 'all') 'readBy': <String>[],
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
     };
   }
 
-  factory AppNotification.fromMap(Map<String, dynamic> map, String id) {
+  factory AppNotification.fromMap(
+    Map<String, dynamic> map,
+    String id, {
+    String? userId,
+  }) {
     DateTime? parseDate(dynamic value) {
       if (value == null) return null;
       if (value is Timestamp) return value.toDate();
@@ -74,14 +79,18 @@ class AppNotification {
       return null;
     }
 
+    final recipientUid = (map['recipientUid'] as String? ?? 'all').trim();
+    final readBy = map['readBy'] as List<dynamic>? ?? const [];
     return AppNotification(
       id: id,
-      recipientUid: (map['recipientUid'] as String? ?? 'all').trim(),
+      recipientUid: recipientUid,
       title: (map['title'] as String? ?? '').trim(),
       message: (map['message'] as String? ?? '').trim(),
       type: (map['type'] as String? ?? NotificationType.general).trim(),
       relatedId: map['relatedId'] as String?,
-      read: map['read'] as bool? ?? false,
+      read: recipientUid == 'all'
+          ? userId != null && readBy.contains(userId)
+          : map['read'] as bool? ?? false,
       createdAt: parseDate(map['createdAt']),
     );
   }

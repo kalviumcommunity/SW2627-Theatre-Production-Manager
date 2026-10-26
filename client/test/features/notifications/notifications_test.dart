@@ -10,7 +10,7 @@ class _FakeNotificationService extends NotificationService {
   String? lastReadId;
 
   _FakeNotificationService({List<AppNotification>? initial})
-      : notifications = initial ?? [];
+    : notifications = initial ?? [];
 
   @override
   Stream<List<AppNotification>> streamNotifications({required String userId}) {
@@ -18,7 +18,7 @@ class _FakeNotificationService extends NotificationService {
   }
 
   @override
-  Future<void> markAsRead(String id) async {
+  Future<void> markAsRead(String id, {required String userId}) async {
     final idx = notifications.indexWhere((n) => n.id == id);
     if (idx != -1) {
       notifications[idx] = notifications[idx].copyWith(read: true);
@@ -35,9 +35,7 @@ class _FakeNotificationService extends NotificationService {
 }
 
 Widget _wrap(Widget child) {
-  return MaterialApp(
-    home: child,
-  );
+  return MaterialApp(home: child);
 }
 
 void main() {
@@ -74,6 +72,33 @@ void main() {
 
       expect(reconstructed.id, 'n1');
       expect(reconstructed.read, isTrue);
+
+      final globalNotification = AppNotification.fromMap(
+        {
+          'recipientUid': 'all',
+          'title': 'Announcement',
+          'message': 'Company call',
+          'read': false,
+          'readBy': ['user-1'],
+        },
+        'n2',
+        userId: 'user-1',
+      );
+      expect(globalNotification.read, isTrue);
+      expect(
+        AppNotification.fromMap(
+          {
+            'recipientUid': 'all',
+            'title': 'Announcement',
+            'message': 'Company call',
+            'read': false,
+            'readBy': ['user-1'],
+          },
+          'n2',
+          userId: 'user-2',
+        ).read,
+        isFalse,
+      );
     });
   });
 
@@ -90,12 +115,11 @@ void main() {
         createdAt: DateTime.now(),
       );
 
-      await tester.pumpWidget(_wrap(
-        NotificationTile(
-          notification: notif,
-          onTap: () => tapped = true,
+      await tester.pumpWidget(
+        _wrap(
+          NotificationTile(notification: notif, onTap: () => tapped = true),
         ),
-      ));
+      );
 
       expect(find.text('Casting Announcement'), findsOneWidget);
       expect(find.text('Call-backs posted on bulletin'), findsOneWidget);
@@ -106,44 +130,46 @@ void main() {
   });
 
   group('NotificationsScreen Tests', () {
-    testWidgets('renders empty state when no notifications exist', (tester) async {
+    testWidgets('renders empty state when no notifications exist', (
+      tester,
+    ) async {
       final fake = _FakeNotificationService(initial: []);
 
-      await tester.pumpWidget(_wrap(
-        NotificationsScreen(
-          notificationService: fake,
-        ),
-      ));
+      await tester.pumpWidget(
+        _wrap(NotificationsScreen(notificationService: fake)),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('No notifications yet'), findsOneWidget);
     });
 
-    testWidgets('filters unread notifications and marks all as read', (tester) async {
-      final fake = _FakeNotificationService(initial: [
-        AppNotification(
-          id: 'n1',
-          recipientUid: 'all',
-          title: 'Schedule Change',
-          message: 'Scene 4 moved',
-          read: false,
-          createdAt: DateTime.now(),
-        ),
-        AppNotification(
-          id: 'n2',
-          recipientUid: 'all',
-          title: 'Venue Booked',
-          message: 'Main hall confirmed',
-          read: true,
-          createdAt: DateTime.now(),
-        ),
-      ]);
+    testWidgets('filters unread notifications and marks all as read', (
+      tester,
+    ) async {
+      final fake = _FakeNotificationService(
+        initial: [
+          AppNotification(
+            id: 'n1',
+            recipientUid: 'all',
+            title: 'Schedule Change',
+            message: 'Scene 4 moved',
+            read: false,
+            createdAt: DateTime.now(),
+          ),
+          AppNotification(
+            id: 'n2',
+            recipientUid: 'all',
+            title: 'Venue Booked',
+            message: 'Main hall confirmed',
+            read: true,
+            createdAt: DateTime.now(),
+          ),
+        ],
+      );
 
-      await tester.pumpWidget(_wrap(
-        NotificationsScreen(
-          notificationService: fake,
-        ),
-      ));
+      await tester.pumpWidget(
+        _wrap(NotificationsScreen(notificationService: fake)),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Schedule Change'), findsOneWidget);

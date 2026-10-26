@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:client/services/auth_service.dart';
+
 import '../models/notification_model.dart';
 import '../services/notification_service.dart';
 import '../widgets/notification_tile.dart';
@@ -32,8 +33,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    _notificationService =
-        widget.notificationService ?? NotificationService();
+    _notificationService = widget.notificationService ?? NotificationService();
     _authService = widget.authService ?? AuthService();
 
     if (widget.currentUserId != null) {
@@ -54,7 +54,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _markAsRead(AppNotification notification) {
     if (!notification.read) {
-      _notificationService.markAsRead(notification.id);
+      _notificationService.markAsRead(notification.id, userId: _userId ?? '');
     }
   }
 
@@ -81,8 +81,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline,
-                    size: 48, color: theme.colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: theme.colorScheme.error,
+                ),
                 const SizedBox(height: 12),
                 Text('Error loading notifications: ${snapshot.error}'),
               ],
@@ -109,15 +112,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   FilterChip(
                     label: Text('All (${all.length})'),
                     selected: _filter == 'All',
-                    selectedColor:
-                        const Color(0xFF8B1E3F).withValues(alpha: 0.15),
+                    selectedColor: const Color(0xFF8B1E3F)
+                        .withValues(alpha: 0.15),
                     checkmarkColor: const Color(0xFF8B1E3F),
                     labelStyle: TextStyle(
                       color: _filter == 'All'
                           ? const Color(0xFF8B1E3F)
                           : theme.colorScheme.onSurface,
-                      fontWeight:
-                          _filter == 'All' ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: _filter == 'All'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                     onSelected: (selected) {
                       if (selected) setState(() => _filter = 'All');
@@ -127,8 +131,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   FilterChip(
                     label: Text('Unread ($unreadCount)'),
                     selected: _filter == 'Unread',
-                    selectedColor:
-                        const Color(0xFF8B1E3F).withValues(alpha: 0.15),
+                    selectedColor: const Color(0xFF8B1E3F)
+                        .withValues(alpha: 0.15),
                     checkmarkColor: const Color(0xFF8B1E3F),
                     labelStyle: TextStyle(
                       color: _filter == 'Unread'
@@ -210,8 +214,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Notifications',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Notifications',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
         body: content,
       );
