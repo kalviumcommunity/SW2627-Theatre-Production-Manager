@@ -8,6 +8,8 @@ import 'package:client/features/auditions/exceptions/audition_exceptions.dart';
 import 'package:client/features/auditions/models/audition_model.dart';
 import 'package:client/features/auditions/services/audition_service.dart';
 
+import '../../support/fake_venue_booking_gateway.dart';
+
 // --- Lightweight Fakes for Firestore unit testing ---
 
 class FakeFirestore extends Fake implements FirebaseFirestore {
@@ -258,7 +260,10 @@ void main() {
 
   setUp(() {
     fakeFirestore = FakeFirestore();
-    service = AuditionService(firestore: fakeFirestore);
+    service = AuditionService(
+      firestore: fakeFirestore,
+      bookingGateway: FakeVenueBookingGateway(fakeFirestore),
+    );
 
     // Seed sample production
     fakeFirestore.getCollection('productions').docs['prod-1'] = {

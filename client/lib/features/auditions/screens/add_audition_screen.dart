@@ -257,6 +257,7 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
         productionId: _productionIdController.text.trim(),
         title: _titleController.text.trim(),
         venue: _venueController.text.trim(),
+        venueId: widget.initialAudition?.venueId,
         startTime: _calculatedStartDateTime,
         endTime: _calculatedEndDateTime,
         requirements: _requirementsController.text.trim(),

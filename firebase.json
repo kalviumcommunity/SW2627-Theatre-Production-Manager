@@ -1,10 +1,22 @@
 {
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
   "firestore": {
     "rules": "client/firestore.rules"
   },
   "emulators": {
     "firestore": {
       "port": 8085,
+      "host": "127.0.0.1"
+    },
+    "functions": {
+      "port": 5001,
+      "host": "127.0.0.1"
+    },
+    "auth": {
+      "port": 9099,
       "host": "127.0.0.1"
     },
     "ui": {

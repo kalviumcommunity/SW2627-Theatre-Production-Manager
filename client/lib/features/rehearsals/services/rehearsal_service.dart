@@ -1,13 +1,21 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../exceptions/rehearsal_exceptions.dart';
 import '../models/rehearsal_model.dart';
+import '../../venues/services/venue_availability_service.dart';
+import '../../venues/services/venue_booking_gateway.dart';
 
 class RehearsalService {
   final FirebaseFirestore? _customFirestore;
+  final VenueBookingGateway? bookingGateway;
 
-  RehearsalService({FirebaseFirestore? firestore})
-      : _customFirestore = firestore;
+  RehearsalService({FirebaseFirestore? firestore, this.bookingGateway})
+    : _customFirestore = firestore;
+
+  VenueBookingGateway get _bookingGatewayOrDefault =>
+      bookingGateway ?? VenueAvailabilityService();
 
   FirebaseFirestore get firestore =>
       _customFirestore ?? FirebaseFirestore.instance;
@@ -33,7 +41,8 @@ class RehearsalService {
       throw const RehearsalValidationException('Production ID is required.');
     }
 
-    if (rehearsal.venueId.trim().isEmpty && rehearsal.venueName.trim().isEmpty) {
+    if (rehearsal.venueId.trim().isEmpty &&
+        rehearsal.venueName.trim().isEmpty) {
       throw const RehearsalValidationException('Venue is required.');
     }
 
@@ -105,7 +114,8 @@ class RehearsalService {
     Rehearsal rehearsal, {
     String? excludeRehearsalId,
   }) async {
-    final excludeId = excludeRehearsalId?.trim() ??
+    final excludeId =
+        excludeRehearsalId?.trim() ??
         (rehearsal.id.trim().isNotEmpty ? rehearsal.id.trim() : null);
 
     final snapshot = await firestore.collection('rehearsals').get();
@@ -158,21 +168,20 @@ class RehearsalService {
       await validateProductionReference(rehearsal.productionId);
     }
 
-    final conflict = await findConflictingRehearsal(rehearsal);
-    if (conflict != null) {
-      throw VenueConflictException(
-        message: 'Venue "${rehearsal.venue}" is already booked for "${conflict.title}" '
-            'from ${conflict.startTime} to ${conflict.endTime}.',
-        conflictingRehearsal: conflict,
-        requestedRehearsal: rehearsal,
-      );
-    }
+    // Helpful preflight for the UI; the callable transaction remains the
+    // authority because this read can race with another client's request.
+    final preflightConflict = await findConflictingRehearsal(rehearsal);
+    if (preflightConflict != null) _throwConflict(rehearsal, preflightConflict);
 
-    final docRef = await firestore
-        .collection('rehearsals')
-        .add(rehearsal.toMap());
-
-    return rehearsal.copyWith(id: docRef.id);
+    final id = rehearsal.id.trim().isNotEmpty
+        ? rehearsal.id.trim()
+        : firestore.collection('rehearsals').doc().id;
+    final savedId = await _bookingGatewayOrDefault.saveBooking(
+      eventType: 'rehearsal',
+      action: 'create',
+      booking: _bookingPayload(rehearsal, id),
+    );
+    return rehearsal.copyWith(id: savedId);
   }
 
   /// Updates an existing rehearsal in Firestore.
@@ -191,23 +200,17 @@ class RehearsalService {
       await validateProductionReference(rehearsal.productionId);
     }
 
-    final conflict = await findConflictingRehearsal(
+    final preflightConflict = await findConflictingRehearsal(
       rehearsal,
       excludeRehearsalId: rehearsal.id,
     );
-    if (conflict != null) {
-      throw VenueConflictException(
-        message: 'Venue "${rehearsal.venue}" is already booked for "${conflict.title}" '
-            'from ${conflict.startTime} to ${conflict.endTime}.',
-        conflictingRehearsal: conflict,
-        requestedRehearsal: rehearsal,
-      );
-    }
+    if (preflightConflict != null) _throwConflict(rehearsal, preflightConflict);
 
-    await firestore
-        .collection('rehearsals')
-        .doc(rehearsal.id.trim())
-        .update(rehearsal.toMap());
+    await _bookingGatewayOrDefault.saveBooking(
+      eventType: 'rehearsal',
+      action: 'update',
+      booking: _bookingPayload(rehearsal, rehearsal.id.trim()),
+    );
   }
 
   /// Deletes a rehearsal by document ID.
@@ -215,7 +218,34 @@ class RehearsalService {
     if (id.trim().isEmpty) {
       throw ArgumentError('Rehearsal ID cannot be empty for deletion.');
     }
-    await firestore.collection('rehearsals').doc(id.trim()).delete();
+    await _bookingGatewayOrDefault.deleteBooking(
+      eventType: 'rehearsal',
+      id: id.trim(),
+    );
+  }
+
+  static Map<String, dynamic> _bookingPayload(Rehearsal rehearsal, String id) =>
+      {
+        'id': id,
+        'productionId': rehearsal.productionId,
+        'title': rehearsal.title,
+        'venueId': rehearsal.venueId,
+        'venueName': rehearsal.venueName,
+        'venue': rehearsal.venue,
+        'startTime': rehearsal.startTime,
+        'endTime': rehearsal.endTime,
+        'creatorUid': rehearsal.creatorUid,
+        'notes': rehearsal.notes,
+      };
+
+  static Never _throwConflict(Rehearsal requested, Rehearsal conflict) {
+    throw VenueConflictException(
+      message:
+          'Venue "${requested.venue}" is already booked for "${conflict.title}" '
+          'from ${conflict.startTime} to ${conflict.endTime}.',
+      conflictingRehearsal: conflict,
+      requestedRehearsal: requested,
+    );
   }
 
   /// Retrieves a rehearsal by document ID.
@@ -233,22 +263,22 @@ class RehearsalService {
     String? venueId,
   }) async {
     final snapshot = await firestore.collection('rehearsals').get();
-    final list = snapshot.docs
-        .map((doc) => Rehearsal.fromFirestore(doc))
-        .where((r) {
-          if (productionId != null && r.productionId != productionId) {
-            return false;
-          }
-          if (venueId != null) {
-            final target = normalizeVenue(venueId);
-            final matches = normalizeVenue(r.venueId) == target ||
-                normalizeVenue(r.venueName) == target ||
-                normalizeVenue(r.venue) == target;
-            if (!matches) return false;
-          }
-          return true;
-        })
-        .toList();
+    final list = snapshot.docs.map((doc) => Rehearsal.fromFirestore(doc)).where(
+      (r) {
+        if (productionId != null && r.productionId != productionId) {
+          return false;
+        }
+        if (venueId != null) {
+          final target = normalizeVenue(venueId);
+          final matches =
+              normalizeVenue(r.venueId) == target ||
+              normalizeVenue(r.venueName) == target ||
+              normalizeVenue(r.venue) == target;
+          if (!matches) return false;
+        }
+        return true;
+      },
+    ).toList();
 
     _sortRehearsalsChronologically(list);
     return list;
@@ -269,7 +299,8 @@ class RehearsalService {
               }
               if (venueId != null) {
                 final target = normalizeVenue(venueId);
-                final matches = normalizeVenue(r.venueId) == target ||
+                final matches =
+                    normalizeVenue(r.venueId) == target ||
                     normalizeVenue(r.venueName) == target ||
                     normalizeVenue(r.venue) == target;
                 if (!matches) return false;

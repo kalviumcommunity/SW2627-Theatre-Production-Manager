@@ -1,4 +1,5 @@
 import '../models/rehearsal_model.dart';
+import '../../venues/exceptions/venue_booking_exception.dart';
 
 /// Exception thrown when a rehearsal fails input validation (e.g. empty fields, invalid times).
 class RehearsalValidationException implements Exception {
@@ -10,17 +11,13 @@ class RehearsalValidationException implements Exception {
 }
 
 /// Exception thrown when a rehearsal conflicts with an existing booking at the same venue.
-class VenueConflictException implements Exception {
-  final String message;
+class VenueConflictException extends VenueBookingConflictException {
   final Rehearsal conflictingRehearsal;
   final Rehearsal requestedRehearsal;
 
   const VenueConflictException({
-    required this.message,
+    required String message,
     required this.conflictingRehearsal,
     required this.requestedRehearsal,
-  });
-
-  @override
-  String toString() => 'VenueConflictException: $message';
+  }) : super(message);
 }

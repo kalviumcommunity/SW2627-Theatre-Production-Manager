@@ -9,6 +9,7 @@ class Venue {
   final List<String> facilities;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final bool isDeleted;
 
   const Venue({
     required this.id,
@@ -19,6 +20,7 @@ class Venue {
     this.facilities = const [],
     this.createdAt,
     this.updatedAt,
+    this.isDeleted = false,
   });
 
   bool get isValidCapacity => capacity > 0;
@@ -32,6 +34,7 @@ class Venue {
     List<String>? facilities,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? isDeleted,
   }) {
     return Venue(
       id: id ?? this.id,
@@ -42,6 +45,7 @@ class Venue {
       facilities: facilities ?? this.facilities,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
@@ -85,6 +89,7 @@ class Venue {
       facilities: parsedFacilities,
       createdAt: parseDate(map['createdAt']),
       updatedAt: parseDate(map['updatedAt']),
+      isDeleted: map['deleted'] == true,
     );
   }
 }

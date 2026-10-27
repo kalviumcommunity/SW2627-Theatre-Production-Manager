@@ -1,11 +1,14 @@
 // ignore_for_file: subtype_of_sealed_class, must_be_immutable
 
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:client/features/rehearsals/exceptions/rehearsal_exceptions.dart';
 import 'package:client/features/rehearsals/models/rehearsal_model.dart';
 import 'package:client/features/rehearsals/services/rehearsal_service.dart';
+
+import '../../support/fake_venue_booking_gateway.dart';
 
 // --- Fakes for Firestore testing ---
 
@@ -37,11 +40,19 @@ class FakeCollectionReference extends Fake
   Future<QuerySnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
     if (shouldThrowOnGet) {
       throw errorToThrow ??
-          FirebaseException(plugin: 'firestore', message: 'Failed to fetch collection');
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Failed to fetch collection',
+          );
     }
     return FakeQuerySnapshot(
       docs.entries
-          .map((e) => FakeQueryDocumentSnapshot(e.key, Map<String, dynamic>.from(e.value)))
+          .map(
+            (e) => FakeQueryDocumentSnapshot(
+              e.key,
+              Map<String, dynamic>.from(e.value),
+            ),
+          )
           .toList(),
     );
   }
@@ -57,7 +68,12 @@ class FakeCollectionReference extends Fake
     return Stream.value(
       FakeQuerySnapshot(
         docs.entries
-            .map((e) => FakeQueryDocumentSnapshot(e.key, Map<String, dynamic>.from(e.value)))
+            .map(
+              (e) => FakeQueryDocumentSnapshot(
+                e.key,
+                Map<String, dynamic>.from(e.value),
+              ),
+            )
             .toList(),
       ),
     );
@@ -68,14 +84,22 @@ class FakeCollectionReference extends Fake
   @override
   DocumentReference<Map<String, dynamic>> doc([String? path]) {
     final docId = path ?? 'auto-id-${docs.length + 1}';
-    return _docRefs.putIfAbsent(docId, () => FakeDocumentReference(this, docId));
+    return _docRefs.putIfAbsent(
+      docId,
+      () => FakeDocumentReference(this, docId),
+    );
   }
 
   @override
-  Future<DocumentReference<Map<String, dynamic>>> add(Map<String, dynamic> data) async {
+  Future<DocumentReference<Map<String, dynamic>>> add(
+    Map<String, dynamic> data,
+  ) async {
     if (shouldThrowOnAdd) {
       throw errorToThrow ??
-          FirebaseException(plugin: 'firestore', message: 'Failed to add document');
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Failed to add document',
+          );
     }
     final docId = 'rehearsal-doc-id-${docs.length + 1}';
     docs[docId] = Map<String, dynamic>.from(data);
@@ -96,10 +120,15 @@ class FakeDocumentReference extends Fake
   FakeDocumentReference(this.parentCollection, this.id);
 
   @override
-  Future<DocumentSnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> get([
+    GetOptions? options,
+  ]) async {
     if (shouldThrowOnGet) {
       throw errorToThrow ??
-          FirebaseException(plugin: 'firestore', message: 'Failed to get document');
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Failed to get document',
+          );
     }
     final data = parentCollection.docs[id];
     return FakeDocumentSnapshot(id, data);
@@ -109,7 +138,10 @@ class FakeDocumentReference extends Fake
   Future<void> update(Map<Object, Object?> data) async {
     if (shouldThrowOnUpdate) {
       throw errorToThrow ??
-          FirebaseException(plugin: 'firestore', message: 'Failed to update document');
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Failed to update document',
+          );
     }
     if (!parentCollection.docs.containsKey(id)) {
       throw FirebaseException(
@@ -118,15 +150,25 @@ class FakeDocumentReference extends Fake
         message: 'No document to update: $id',
       );
     }
-    final stringKeyData = data.map((key, value) => MapEntry(key.toString(), value));
+    final stringKeyData = data.map(
+      (key, value) => MapEntry(key.toString(), value),
+    );
     parentCollection.docs[id]!.addAll(stringKeyData);
+  }
+
+  @override
+  Future<void> set(Map<String, dynamic> data, [SetOptions? options]) async {
+    parentCollection.docs[id] = Map<String, dynamic>.from(data);
   }
 
   @override
   Future<void> delete() async {
     if (shouldThrowOnDelete) {
       throw errorToThrow ??
-          FirebaseException(plugin: 'firestore', message: 'Failed to delete document');
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Failed to delete document',
+          );
     }
     parentCollection.docs.remove(id);
   }
@@ -179,7 +221,10 @@ void main() {
     fakeFirestore = FakeFirestore();
     rehearsalsCollection = fakeFirestore.getCollection('rehearsals');
     productionsCollection = fakeFirestore.getCollection('productions');
-    service = RehearsalService(firestore: fakeFirestore);
+    service = RehearsalService(
+      firestore: fakeFirestore,
+      bookingGateway: FakeVenueBookingGateway(fakeFirestore),
+    );
 
     // Seed a valid existing production
     productionsCollection.docs['prod-valid'] = {
@@ -189,119 +234,134 @@ void main() {
   });
 
   group('Rehearsal Model', () {
-    test('instantiates with all fields and computes duration / isValidTimeRange', () {
-      final start = DateTime(2026, 11, 1, 14, 0);
-      final end = DateTime(2026, 11, 1, 17, 0);
-      final created = DateTime(2026, 10, 20);
+    test(
+      'instantiates with all fields and computes duration / isValidTimeRange',
+      () {
+        final start = DateTime(2026, 11, 1, 14, 0);
+        final end = DateTime(2026, 11, 1, 17, 0);
+        final created = DateTime(2026, 10, 20);
 
-      final rehearsal = Rehearsal(
-        id: 'reh-1',
-        productionId: 'prod-valid',
-        title: 'Act 1 Scene 2 Run-Through',
-        venueId: 'main-stage',
-        venueName: 'Main Stage Auditorium',
-        startTime: start,
-        endTime: end,
-        creatorUid: 'director-uid',
-        notes: 'Bring full costumes',
-        createdAt: created,
-      );
+        final rehearsal = Rehearsal(
+          id: 'reh-1',
+          productionId: 'prod-valid',
+          title: 'Act 1 Scene 2 Run-Through',
+          venueId: 'main-stage',
+          venueName: 'Main Stage Auditorium',
+          startTime: start,
+          endTime: end,
+          creatorUid: 'director-uid',
+          notes: 'Bring full costumes',
+          createdAt: created,
+        );
 
-      expect(rehearsal.id, 'reh-1');
-      expect(rehearsal.productionId, 'prod-valid');
-      expect(rehearsal.title, 'Act 1 Scene 2 Run-Through');
-      expect(rehearsal.venueId, 'main-stage');
-      expect(rehearsal.venueName, 'Main Stage Auditorium');
-      expect(rehearsal.venue, 'Main Stage Auditorium');
-      expect(rehearsal.startTime, start);
-      expect(rehearsal.endTime, end);
-      expect(rehearsal.creatorUid, 'director-uid');
-      expect(rehearsal.notes, 'Bring full costumes');
-      expect(rehearsal.createdAt, created);
-      expect(rehearsal.isValidTimeRange, isTrue);
-      expect(rehearsal.duration, const Duration(hours: 3));
-    });
+        expect(rehearsal.id, 'reh-1');
+        expect(rehearsal.productionId, 'prod-valid');
+        expect(rehearsal.title, 'Act 1 Scene 2 Run-Through');
+        expect(rehearsal.venueId, 'main-stage');
+        expect(rehearsal.venueName, 'Main Stage Auditorium');
+        expect(rehearsal.venue, 'Main Stage Auditorium');
+        expect(rehearsal.startTime, start);
+        expect(rehearsal.endTime, end);
+        expect(rehearsal.creatorUid, 'director-uid');
+        expect(rehearsal.notes, 'Bring full costumes');
+        expect(rehearsal.createdAt, created);
+        expect(rehearsal.isValidTimeRange, isTrue);
+        expect(rehearsal.duration, const Duration(hours: 3));
+      },
+    );
 
-    test('prefers venueName if present, falls back to venueId for venue getter', () {
-      final r1 = Rehearsal(
-        id: 'r1',
-        productionId: 'p1',
-        venueId: 'room-101',
-        venueName: 'Studio 101',
-        startTime: DateTime(2026, 11, 1, 10),
-        endTime: DateTime(2026, 11, 1, 12),
-        creatorUid: 'uid-1',
-      );
-      expect(r1.venue, 'Studio 101');
+    test(
+      'prefers venueName if present, falls back to venueId for venue getter',
+      () {
+        final r1 = Rehearsal(
+          id: 'r1',
+          productionId: 'p1',
+          venueId: 'room-101',
+          venueName: 'Studio 101',
+          startTime: DateTime(2026, 11, 1, 10),
+          endTime: DateTime(2026, 11, 1, 12),
+          creatorUid: 'uid-1',
+        );
+        expect(r1.venue, 'Studio 101');
 
-      final r2 = Rehearsal(
-        id: 'r2',
-        productionId: 'p1',
-        venueId: 'room-102',
-        venueName: '',
-        startTime: DateTime(2026, 11, 1, 10),
-        endTime: DateTime(2026, 11, 1, 12),
-        creatorUid: 'uid-1',
-      );
-      expect(r2.venue, 'room-102');
-    });
+        final r2 = Rehearsal(
+          id: 'r2',
+          productionId: 'p1',
+          venueId: 'room-102',
+          venueName: '',
+          startTime: DateTime(2026, 11, 1, 10),
+          endTime: DateTime(2026, 11, 1, 12),
+          creatorUid: 'uid-1',
+        );
+        expect(r2.venue, 'room-102');
+      },
+    );
 
-    test('serializes toMap and deserializes fromMap with Timestamp and String', () {
-      final start = DateTime(2026, 11, 10, 9, 30);
-      final end = DateTime(2026, 11, 10, 12, 0);
+    test(
+      'serializes toMap and deserializes fromMap with Timestamp and String',
+      () {
+        final start = DateTime(2026, 11, 10, 9, 30);
+        final end = DateTime(2026, 11, 10, 12, 0);
 
-      final original = Rehearsal(
-        id: 'reh-serialize',
-        productionId: 'prod-valid',
-        title: 'Vocal Warmups',
-        venueId: 'rehearsal-hall-a',
-        venueName: 'Hall A',
-        startTime: start,
-        endTime: end,
-        creatorUid: 'director-1',
-        notes: 'Bring scores',
-        createdAt: DateTime(2026, 11, 1),
-      );
+        final original = Rehearsal(
+          id: 'reh-serialize',
+          productionId: 'prod-valid',
+          title: 'Vocal Warmups',
+          venueId: 'rehearsal-hall-a',
+          venueName: 'Hall A',
+          startTime: start,
+          endTime: end,
+          creatorUid: 'director-1',
+          notes: 'Bring scores',
+          createdAt: DateTime(2026, 11, 1),
+        );
 
-      final map = original.toMap();
-      expect(map['productionId'], 'prod-valid');
-      expect(map['title'], 'Vocal Warmups');
-      expect(map['venueId'], 'rehearsal-hall-a');
-      expect(map['venueName'], 'Hall A');
-      expect(map['venue'], 'Hall A');
-      expect(map['creatorUid'], 'director-1');
-      expect(map['notes'], 'Bring scores');
-      expect(map['startTime'], isA<Timestamp>());
-      expect(map['endTime'], isA<Timestamp>());
-      expect(map['scheduledAt'], isA<Timestamp>());
+        final map = original.toMap();
+        expect(map['productionId'], 'prod-valid');
+        expect(map['title'], 'Vocal Warmups');
+        expect(map['venueId'], 'rehearsal-hall-a');
+        expect(map['venueName'], 'Hall A');
+        expect(map['venue'], 'Hall A');
+        expect(map['creatorUid'], 'director-1');
+        expect(map['notes'], 'Bring scores');
+        expect(map['startTime'], isA<Timestamp>());
+        expect(map['endTime'], isA<Timestamp>());
+        expect(map['scheduledAt'], isA<Timestamp>());
 
-      // Deserialization from map
-      final restored = Rehearsal.fromMap(map, 'reh-serialize');
-      expect(restored.id, 'reh-serialize');
-      expect(restored.productionId, 'prod-valid');
-      expect(restored.title, 'Vocal Warmups');
-      expect(restored.venueId, 'rehearsal-hall-a');
-      expect(restored.venueName, 'Hall A');
-      expect(restored.startTime, start);
-      expect(restored.endTime, end);
-      expect(restored.creatorUid, 'director-1');
+        // Deserialization from map
+        final restored = Rehearsal.fromMap(map, 'reh-serialize');
+        expect(restored.id, 'reh-serialize');
+        expect(restored.productionId, 'prod-valid');
+        expect(restored.title, 'Vocal Warmups');
+        expect(restored.venueId, 'rehearsal-hall-a');
+        expect(restored.venueName, 'Hall A');
+        expect(restored.startTime, start);
+        expect(restored.endTime, end);
+        expect(restored.creatorUid, 'director-1');
 
-      // Deserialization with ISO string dates
-      final mapWithStrings = {
-        'productionId': 'prod-valid',
-        'title': 'Choreography',
-        'venue': 'Dance Studio',
-        'startTime': '2026-11-15T14:00:00.000Z',
-        'endTime': '2026-11-15T16:00:00.000Z',
-        'createdBy': 'choreographer-1',
-      };
-      final stringParsed = Rehearsal.fromMap(mapWithStrings, 'str-id');
-      expect(stringParsed.title, 'Choreography');
-      expect(stringParsed.venue, 'Dance Studio');
-      expect(stringParsed.startTime, DateTime.parse('2026-11-15T14:00:00.000Z'));
-      expect(stringParsed.endTime, DateTime.parse('2026-11-15T16:00:00.000Z'));
-      expect(stringParsed.creatorUid, 'choreographer-1');
-    });
+        // Deserialization with ISO string dates
+        final mapWithStrings = {
+          'productionId': 'prod-valid',
+          'title': 'Choreography',
+          'venue': 'Dance Studio',
+          'startTime': '2026-11-15T14:00:00.000Z',
+          'endTime': '2026-11-15T16:00:00.000Z',
+          'createdBy': 'choreographer-1',
+        };
+        final stringParsed = Rehearsal.fromMap(mapWithStrings, 'str-id');
+        expect(stringParsed.title, 'Choreography');
+        expect(stringParsed.venue, 'Dance Studio');
+        expect(
+          stringParsed.startTime,
+          DateTime.parse('2026-11-15T14:00:00.000Z'),
+        );
+        expect(
+          stringParsed.endTime,
+          DateTime.parse('2026-11-15T16:00:00.000Z'),
+        );
+        expect(stringParsed.creatorUid, 'choreographer-1');
+      },
+    );
 
     test('copyWith updates specified fields only', () {
       final original = Rehearsal(
@@ -342,11 +402,13 @@ void main() {
 
       expect(
         () => service.validateRehearsal(r1),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('Production ID is required'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('Production ID is required'),
+          ),
+        ),
       );
       expect(
         () => service.validateRehearsal(r2),
@@ -368,11 +430,13 @@ void main() {
 
       expect(
         () => service.validateRehearsal(r1),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('Venue is required'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('Venue is required'),
+          ),
+        ),
       );
       expect(
         () => service.validateRehearsal(r2),
@@ -392,11 +456,13 @@ void main() {
 
       expect(
         () => service.validateRehearsal(r),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('Creator UID is required'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('Creator UID is required'),
+          ),
+        ),
       );
     });
 
@@ -413,11 +479,13 @@ void main() {
 
       expect(
         () => service.validateRehearsal(r),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('duration cannot be zero'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('duration cannot be zero'),
+          ),
+        ),
       );
     });
 
@@ -433,11 +501,13 @@ void main() {
 
       expect(
         () => service.validateRehearsal(r),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('strictly after start time'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('strictly after start time'),
+          ),
+        ),
       );
     });
 
@@ -453,11 +523,13 @@ void main() {
 
       expect(
         () => service.createRehearsal(r, checkProductionExists: true),
-        throwsA(isA<RehearsalValidationException>().having(
-          (e) => e.message,
-          'message',
-          contains('Referenced production does not exist'),
-        )),
+        throwsA(
+          isA<RehearsalValidationException>().having(
+            (e) => e.message,
+            'message',
+            contains('Referenced production does not exist'),
+          ),
+        ),
       );
     });
   });
@@ -498,98 +570,115 @@ void main() {
       expect(RehearsalService.intervalsOverlap(t1, t4, t2, t3), isTrue);
     });
 
-    test('allows adjacent booking that ends exactly as existing booking begins', () async {
-      // 11:00 to 14:00 (ends exactly at 14:00, when existing begins)
-      final adjacentBefore = Rehearsal(
-        id: '',
-        productionId: 'prod-valid',
-        title: 'Morning Block',
-        venueId: 'main-auditorium',
-        venueName: 'Main Auditorium',
-        startTime: DateTime(2026, 11, 15, 11, 0),
-        endTime: existingStart, // 14:00
-        creatorUid: 'dir-1',
-      );
+    test(
+      'allows adjacent booking that ends exactly as existing booking begins',
+      () async {
+        // 11:00 to 14:00 (ends exactly at 14:00, when existing begins)
+        final adjacentBefore = Rehearsal(
+          id: '',
+          productionId: 'prod-valid',
+          title: 'Morning Block',
+          venueId: 'main-auditorium',
+          venueName: 'Main Auditorium',
+          startTime: DateTime(2026, 11, 15, 11, 0),
+          endTime: existingStart, // 14:00
+          creatorUid: 'dir-1',
+        );
 
-      final created = await service.createRehearsal(adjacentBefore);
-      expect(created.id, isNotEmpty);
-      expect(rehearsalsCollection.docs.containsKey(created.id), isTrue);
-    });
+        final created = await service.createRehearsal(adjacentBefore);
+        expect(created.id, isNotEmpty);
+        expect(rehearsalsCollection.docs.containsKey(created.id), isTrue);
+      },
+    );
 
-    test('allows adjacent booking that starts exactly as existing booking ends', () async {
-      // 17:00 to 20:00 (starts exactly at 17:00, when existing ends)
-      final adjacentAfter = Rehearsal(
-        id: '',
-        productionId: 'prod-valid',
-        title: 'Evening Block',
-        venueId: 'main-auditorium',
-        venueName: 'Main Auditorium',
-        startTime: existingEnd, // 17:00
-        endTime: DateTime(2026, 11, 15, 20, 0),
-        creatorUid: 'dir-1',
-      );
+    test(
+      'allows adjacent booking that starts exactly as existing booking ends',
+      () async {
+        // 17:00 to 20:00 (starts exactly at 17:00, when existing ends)
+        final adjacentAfter = Rehearsal(
+          id: '',
+          productionId: 'prod-valid',
+          title: 'Evening Block',
+          venueId: 'main-auditorium',
+          venueName: 'Main Auditorium',
+          startTime: existingEnd, // 17:00
+          endTime: DateTime(2026, 11, 15, 20, 0),
+          creatorUid: 'dir-1',
+        );
 
-      final created = await service.createRehearsal(adjacentAfter);
-      expect(created.id, isNotEmpty);
-      expect(rehearsalsCollection.docs.containsKey(created.id), isTrue);
-    });
+        final created = await service.createRehearsal(adjacentAfter);
+        expect(created.id, isNotEmpty);
+        expect(rehearsalsCollection.docs.containsKey(created.id), isTrue);
+      },
+    );
 
-    test('allows concurrent booking at a DIFFERENT venue during exact same time', () async {
-      final differentVenue = Rehearsal(
-        id: '',
-        productionId: 'prod-valid',
-        title: 'Dance Studio Rehearsal',
-        venueId: 'studio-b',
-        venueName: 'Studio B',
-        startTime: existingStart, // 14:00
-        endTime: existingEnd, // 17:00
-        creatorUid: 'dir-1',
-      );
+    test(
+      'allows concurrent booking at a DIFFERENT venue during exact same time',
+      () async {
+        final differentVenue = Rehearsal(
+          id: '',
+          productionId: 'prod-valid',
+          title: 'Dance Studio Rehearsal',
+          venueId: 'studio-b',
+          venueName: 'Studio B',
+          startTime: existingStart, // 14:00
+          endTime: existingEnd, // 17:00
+          creatorUid: 'dir-1',
+        );
 
-      final created = await service.createRehearsal(differentVenue);
-      expect(created.id, isNotEmpty);
-      expect(created.venue, 'Studio B');
-    });
+        final created = await service.createRehearsal(differentVenue);
+        expect(created.id, isNotEmpty);
+        expect(created.venue, 'Studio B');
+      },
+    );
 
-    test('rejects booking that partially overlaps start of existing booking', () async {
-      // 13:00 to 15:00 overlaps 14:00 to 17:00
-      final partialStartOverlap = Rehearsal(
-        id: '',
-        productionId: 'prod-valid',
-        title: 'Overlapping Start',
-        venueId: 'main-auditorium',
-        startTime: DateTime(2026, 11, 15, 13, 0),
-        endTime: DateTime(2026, 11, 15, 15, 0),
-        creatorUid: 'dir-1',
-      );
+    test(
+      'rejects booking that partially overlaps start of existing booking',
+      () async {
+        // 13:00 to 15:00 overlaps 14:00 to 17:00
+        final partialStartOverlap = Rehearsal(
+          id: '',
+          productionId: 'prod-valid',
+          title: 'Overlapping Start',
+          venueId: 'main-auditorium',
+          startTime: DateTime(2026, 11, 15, 13, 0),
+          endTime: DateTime(2026, 11, 15, 15, 0),
+          creatorUid: 'dir-1',
+        );
 
-      expect(
-        () => service.createRehearsal(partialStartOverlap),
-        throwsA(isA<VenueConflictException>().having(
-          (e) => e.conflictingRehearsal.id,
-          'conflictingRehearsal.id',
-          'existing-booking-1',
-        )),
-      );
-    });
+        expect(
+          () => service.createRehearsal(partialStartOverlap),
+          throwsA(
+            isA<VenueConflictException>().having(
+              (e) => e.conflictingRehearsal.id,
+              'conflictingRehearsal.id',
+              'existing-booking-1',
+            ),
+          ),
+        );
+      },
+    );
 
-    test('rejects booking that partially overlaps end of existing booking', () async {
-      // 16:00 to 18:00 overlaps 14:00 to 17:00
-      final partialEndOverlap = Rehearsal(
-        id: '',
-        productionId: 'prod-valid',
-        title: 'Overlapping End',
-        venueId: 'main-auditorium',
-        startTime: DateTime(2026, 11, 15, 16, 0),
-        endTime: DateTime(2026, 11, 15, 18, 0),
-        creatorUid: 'dir-1',
-      );
+    test(
+      'rejects booking that partially overlaps end of existing booking',
+      () async {
+        // 16:00 to 18:00 overlaps 14:00 to 17:00
+        final partialEndOverlap = Rehearsal(
+          id: '',
+          productionId: 'prod-valid',
+          title: 'Overlapping End',
+          venueId: 'main-auditorium',
+          startTime: DateTime(2026, 11, 15, 16, 0),
+          endTime: DateTime(2026, 11, 15, 18, 0),
+          creatorUid: 'dir-1',
+        );
 
-      expect(
-        () => service.createRehearsal(partialEndOverlap),
-        throwsA(isA<VenueConflictException>()),
-      );
-    });
+        expect(
+          () => service.createRehearsal(partialEndOverlap),
+          throwsA(isA<VenueConflictException>()),
+        );
+      },
+    );
 
     test('rejects booking completely inside existing booking', () async {
       // 14:30 to 16:30 is inside 14:00 to 17:00
@@ -689,42 +778,51 @@ void main() {
       };
     });
 
-    test('allows updating an existing rehearsal without conflicting with itself', () async {
-      final rehA = Rehearsal(
-        id: 'reh-a',
-        productionId: 'prod-valid',
-        title: 'Rehearsal A (Updated Title)',
-        venueId: 'stage-one',
-        venueName: 'Stage One',
-        startTime: startA,
-        endTime: endA,
-        creatorUid: 'dir-1',
-        notes: 'Updated notes',
-      );
+    test(
+      'allows updating an existing rehearsal without conflicting with itself',
+      () async {
+        final rehA = Rehearsal(
+          id: 'reh-a',
+          productionId: 'prod-valid',
+          title: 'Rehearsal A (Updated Title)',
+          venueId: 'stage-one',
+          venueName: 'Stage One',
+          startTime: startA,
+          endTime: endA,
+          creatorUid: 'dir-1',
+          notes: 'Updated notes',
+        );
 
-      await service.updateRehearsal(rehA);
-      expect(rehearsalsCollection.docs['reh-a']!['title'], 'Rehearsal A (Updated Title)');
-      expect(rehearsalsCollection.docs['reh-a']!['notes'], 'Updated notes');
-    });
+        await service.updateRehearsal(rehA);
+        expect(
+          rehearsalsCollection.docs['reh-a']!['title'],
+          'Rehearsal A (Updated Title)',
+        );
+        expect(rehearsalsCollection.docs['reh-a']!['notes'], 'Updated notes');
+      },
+    );
 
-    test('allows updating existing rehearsal time to a non-conflicting time', () async {
-      final rehA = Rehearsal(
-        id: 'reh-a',
-        productionId: 'prod-valid',
-        title: 'Rehearsal A (Shifted)',
-        venueId: 'stage-one',
-        venueName: 'Stage One',
-        startTime: DateTime(2026, 11, 20, 8, 0),
-        endTime: DateTime(2026, 11, 20, 10, 0),
-        creatorUid: 'dir-1',
-      );
+    test(
+      'allows updating existing rehearsal time to a non-conflicting time',
+      () async {
+        final rehA = Rehearsal(
+          id: 'reh-a',
+          productionId: 'prod-valid',
+          title: 'Rehearsal A (Shifted)',
+          venueId: 'stage-one',
+          venueName: 'Stage One',
+          startTime: DateTime(2026, 11, 20, 8, 0),
+          endTime: DateTime(2026, 11, 20, 10, 0),
+          creatorUid: 'dir-1',
+        );
 
-      await service.updateRehearsal(rehA);
-      expect(
-        rehearsalsCollection.docs['reh-a']!['startTime'],
-        Timestamp.fromDate(DateTime(2026, 11, 20, 8, 0)),
-      );
-    });
+        await service.updateRehearsal(rehA);
+        expect(
+          rehearsalsCollection.docs['reh-a']!['startTime'],
+          Timestamp.fromDate(DateTime(2026, 11, 20, 8, 0)),
+        );
+      },
+    );
 
     test('rejects updating existing rehearsal if modified time conflicts with another rehearsal', () async {
       // Shifting reh-a into reh-b (14:00 to 16:00)
@@ -741,11 +839,13 @@ void main() {
 
       expect(
         () => service.updateRehearsal(rehAConflicting),
-        throwsA(isA<VenueConflictException>().having(
-          (e) => e.conflictingRehearsal.id,
-          'conflictingRehearsal.id',
-          'reh-b',
-        )),
+        throwsA(
+          isA<VenueConflictException>().having(
+            (e) => e.conflictingRehearsal.id,
+            'conflictingRehearsal.id',
+            'reh-b',
+          ),
+        ),
       );
     });
   });
@@ -756,38 +856,41 @@ void main() {
       expect(list, isEmpty);
     });
 
-    test('getRehearsals returns items sorted chronologically by start time', () async {
-      rehearsalsCollection.docs['reh-late'] = {
-        'productionId': 'prod-valid',
-        'title': 'Late Show',
-        'venueId': 'stage-1',
-        'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 18, 0)),
-        'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 20, 0)),
-        'creatorUid': 'dir-1',
-      };
-      rehearsalsCollection.docs['reh-early'] = {
-        'productionId': 'prod-valid',
-        'title': 'Early Show',
-        'venueId': 'stage-1',
-        'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 9, 0)),
-        'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 11, 0)),
-        'creatorUid': 'dir-1',
-      };
-      rehearsalsCollection.docs['reh-mid'] = {
-        'productionId': 'prod-valid',
-        'title': 'Mid Show',
-        'venueId': 'stage-1',
-        'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 13, 0)),
-        'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 15, 0)),
-        'creatorUid': 'dir-1',
-      };
+    test(
+      'getRehearsals returns items sorted chronologically by start time',
+      () async {
+        rehearsalsCollection.docs['reh-late'] = {
+          'productionId': 'prod-valid',
+          'title': 'Late Show',
+          'venueId': 'stage-1',
+          'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 18, 0)),
+          'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 20, 0)),
+          'creatorUid': 'dir-1',
+        };
+        rehearsalsCollection.docs['reh-early'] = {
+          'productionId': 'prod-valid',
+          'title': 'Early Show',
+          'venueId': 'stage-1',
+          'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 9, 0)),
+          'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 11, 0)),
+          'creatorUid': 'dir-1',
+        };
+        rehearsalsCollection.docs['reh-mid'] = {
+          'productionId': 'prod-valid',
+          'title': 'Mid Show',
+          'venueId': 'stage-1',
+          'startTime': Timestamp.fromDate(DateTime(2026, 12, 1, 13, 0)),
+          'endTime': Timestamp.fromDate(DateTime(2026, 12, 1, 15, 0)),
+          'creatorUid': 'dir-1',
+        };
 
-      final list = await service.getRehearsals();
-      expect(list.length, 3);
-      expect(list[0].title, 'Early Show');
-      expect(list[1].title, 'Mid Show');
-      expect(list[2].title, 'Late Show');
-    });
+        final list = await service.getRehearsals();
+        expect(list.length, 3);
+        expect(list[0].title, 'Early Show');
+        expect(list[1].title, 'Mid Show');
+        expect(list[2].title, 'Late Show');
+      },
+    );
 
     test('getRehearsals filters by productionId and venueId', () async {
       rehearsalsCollection.docs['r-p1-v1'] = {
@@ -821,7 +924,10 @@ void main() {
       final venue1List = await service.getRehearsalsByVenue('venue-1');
       expect(venue1List.length, 2);
 
-      final filtered = await service.getRehearsals(productionId: 'prod-1', venueId: 'venue-1');
+      final filtered = await service.getRehearsals(
+        productionId: 'prod-1',
+        venueId: 'venue-1',
+      );
       expect(filtered.length, 1);
       expect(filtered.first.title, 'P1 V1');
     });
@@ -861,48 +967,60 @@ void main() {
       expect(rehearsalsCollection.docs.containsKey('r-delete'), isFalse);
 
       expect(() => service.deleteRehearsal(''), throwsA(isA<ArgumentError>()));
-      expect(() => service.deleteRehearsal('   '), throwsA(isA<ArgumentError>()));
+      expect(
+        () => service.deleteRehearsal('   '),
+        throwsA(isA<ArgumentError>()),
+      );
     });
 
-    test('streamRehearsals emits live updates in chronological order', () async {
-      final controller = StreamController<QuerySnapshot<Map<String, dynamic>>>();
-      rehearsalsCollection.streamController = controller;
+    test(
+      'streamRehearsals emits live updates in chronological order',
+      () async {
+        final controller =
+            StreamController<QuerySnapshot<Map<String, dynamic>>>();
+        rehearsalsCollection.streamController = controller;
 
-      final emissions = <List<Rehearsal>>[];
-      final sub = service.streamRehearsals().listen(emissions.add);
+        final emissions = <List<Rehearsal>>[];
+        final sub = service.streamRehearsals().listen(emissions.add);
 
-      controller.add(FakeQuerySnapshot([]));
-      await Future<void>.delayed(Duration.zero);
+        controller.add(FakeQuerySnapshot([]));
+        await Future<void>.delayed(Duration.zero);
 
-      controller.add(FakeQuerySnapshot([
-        FakeQueryDocumentSnapshot('r2', {
-          'productionId': 'p1',
-          'title': 'Later Session',
-          'venueId': 'v1',
-          'startTime': Timestamp.fromDate(DateTime(2026, 11, 1, 14)),
-          'endTime': Timestamp.fromDate(DateTime(2026, 11, 1, 16)),
-          'creatorUid': 'd1',
-        }),
-        FakeQueryDocumentSnapshot('r1', {
-          'productionId': 'p1',
-          'title': 'Earlier Session',
-          'venueId': 'v1',
-          'startTime': Timestamp.fromDate(DateTime(2026, 11, 1, 10)),
-          'endTime': Timestamp.fromDate(DateTime(2026, 11, 1, 12)),
-          'creatorUid': 'd1',
-        }),
-      ]));
-      await Future<void>.delayed(Duration.zero);
+        controller.add(
+          FakeQuerySnapshot([
+            FakeQueryDocumentSnapshot('r2', {
+              'productionId': 'p1',
+              'title': 'Later Session',
+              'venueId': 'v1',
+              'startTime': Timestamp.fromDate(DateTime(2026, 11, 1, 14)),
+              'endTime': Timestamp.fromDate(DateTime(2026, 11, 1, 16)),
+              'creatorUid': 'd1',
+            }),
+            FakeQueryDocumentSnapshot('r1', {
+              'productionId': 'p1',
+              'title': 'Earlier Session',
+              'venueId': 'v1',
+              'startTime': Timestamp.fromDate(DateTime(2026, 11, 1, 10)),
+              'endTime': Timestamp.fromDate(DateTime(2026, 11, 1, 12)),
+              'creatorUid': 'd1',
+            }),
+          ]),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(emissions.length, 2);
-      expect(emissions[0], isEmpty);
-      expect(emissions[1].length, 2);
-      expect(emissions[1][0].title, 'Earlier Session'); // Sorted chronologically
-      expect(emissions[1][1].title, 'Later Session');
+        expect(emissions.length, 2);
+        expect(emissions[0], isEmpty);
+        expect(emissions[1].length, 2);
+        expect(
+          emissions[1][0].title,
+          'Earlier Session',
+        ); // Sorted chronologically
+        expect(emissions[1][1].title, 'Later Session');
 
-      await sub.cancel();
-      await controller.close();
-    });
+        await sub.cancel();
+        await controller.close();
+      },
+    );
 
     test('propagates Firestore error when fetch fails', () async {
       rehearsalsCollection.shouldThrowOnGet = true;
@@ -914,7 +1032,13 @@ void main() {
 
       expect(
         () => service.getRehearsals(),
-        throwsA(isA<FirebaseException>().having((e) => e.code, 'code', 'permission-denied')),
+        throwsA(
+          isA<FirebaseException>().having(
+            (e) => e.code,
+            'code',
+            'permission-denied',
+          ),
+        ),
       );
     });
   });

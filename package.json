@@ -4,8 +4,12 @@
   "private": true,
   "description": "Automated Firestore security rules tests for Theatre Production Manager",
   "scripts": {
-    "test:rules": "firebase emulators:exec --only firestore \"npx mocha test/firestore.rules.test.js --timeout 15000\"",
-    "test": "npm run test:rules"
+    "test:functions:unit": "npm --prefix functions run test:unit",
+    "test:functions:transaction": "npm --prefix functions run test:transaction",
+    "test:functions:integration": "npm --prefix functions run test:integration",
+    "test:rules": "firebase emulators:exec --project demo-venue-rules-tests --only firestore \"npx mocha test/firestore.rules.test.js --timeout 15000\"",
+    "test:bookings": "firebase emulators:exec --project demo-venue-booking-tests --only auth,firestore,functions \"npm --prefix functions test\"",
+    "test": "npm run test:functions:unit && npm run test:rules && npm run test:bookings"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",
