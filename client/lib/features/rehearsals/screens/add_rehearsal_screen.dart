@@ -7,6 +7,7 @@ import '../../productions/services/production_service.dart';
 import '../exceptions/rehearsal_exceptions.dart';
 import '../models/rehearsal_model.dart';
 import '../services/rehearsal_service.dart';
+import '../../venues/exceptions/venue_booking_exception.dart';
 
 class AddRehearsalScreen extends StatefulWidget {
   final RehearsalService? rehearsalService;
@@ -42,7 +43,7 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
   String? _timeError;
-  VenueConflictException? _venueConflict;
+  VenueBookingConflictException? _venueConflict;
 
   bool _isSaving = false;
   List<Production> _availableProductions = [];
@@ -330,7 +331,7 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
       );
 
       Navigator.of(context).pop(saved);
-    } on VenueConflictException catch (e) {
+    } on VenueBookingConflictException catch (e) {
       if (!mounted) return;
       setState(() {
         _isSaving = false;

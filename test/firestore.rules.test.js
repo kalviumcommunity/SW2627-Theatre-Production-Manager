@@ -6,7 +6,7 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-const PROJECT_ID = 'theatre-production-manager';
+const PROJECT_ID = 'demo-venue-rules-tests';
 const RULES_PATH = path.resolve(__dirname, '../client/firestore.rules');
 
 describe('Firestore Security Rules', function () {
@@ -547,7 +547,7 @@ describe('Firestore Security Rules', function () {
     });
   });
 
-  describe('10. Rehearsal schedules access control and validation', () => {
+  describe('10. Rehearsal reads and trusted booking writes', () => {
     it('denies unauthenticated read and write access to rehearsals', async () => {
       const db = testEnv.unauthenticatedContext().firestore();
       await assertFails(db.collection('rehearsals').doc('reh-existing').get());
@@ -590,9 +590,9 @@ describe('Firestore Security Rules', function () {
       await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
     });
 
-    it('allows Director to create, update, and delete rehearsals with valid data', async () => {
+    it('denies direct booking writes even for Directors; callable backend owns writes', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
-      await assertSucceeds(
+      await assertFails(
         db.collection('rehearsals').doc('reh-valid').set({
           productionId: 'prod-existing',
           venueId: 'stage-main',
@@ -600,12 +600,12 @@ describe('Firestore Security Rules', function () {
           endTime: new Date('2026-11-05T17:00:00Z'),
         })
       );
-      await assertSucceeds(
+      await assertFails(
         db.collection('rehearsals').doc('reh-existing').update({
           endTime: new Date('2026-11-01T13:00:00Z'),
         })
       );
-      await assertSucceeds(db.collection('rehearsals').doc('reh-existing').delete());
+      await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
     });
 
     it('denies rehearsal creation with invalid time range (endTime <= startTime)', async () => {
@@ -664,7 +664,7 @@ describe('Firestore Security Rules', function () {
       await assertFails(db.collection('rehearsals').doc('reh-existing').delete());
     });
   });
-  describe('11. Audition schedules access control and validation', () => {
+  describe('11. Audition reads and trusted booking writes', () => {
     it('denies unauthenticated read and write access to auditions', async () => {
       const db = testEnv.unauthenticatedContext().firestore();
       await assertFails(db.collection('auditions').doc('aud-existing').get());
@@ -713,9 +713,9 @@ describe('Firestore Security Rules', function () {
       await assertFails(db.collection('auditions').doc('aud-existing').delete());
     });
 
-    it('allows Director to create, update, and delete auditions with valid data', async () => {
+    it('denies direct booking writes even for Directors; callable backend owns writes', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
-      await assertSucceeds(
+      await assertFails(
         db.collection('auditions').doc('aud-dir-new').set({
           productionId: 'prod-existing',
           title: 'Director Audition Call',
@@ -726,12 +726,12 @@ describe('Firestore Security Rules', function () {
           creatorUid: DIRECTOR_UID,
         })
       );
-      await assertSucceeds(
+      await assertFails(
         db.collection('auditions').doc('aud-existing').update({
           status: 'Cancelled',
         })
       );
-      await assertSucceeds(db.collection('auditions').doc('aud-existing').delete());
+      await assertFails(db.collection('auditions').doc('aud-existing').delete());
     });
 
     it('denies audition creation with invalid time range (endTime <= startTime)', async () => {
@@ -863,43 +863,28 @@ describe('Firestore Security Rules', function () {
       await assertFails(db.collection('venues').doc('venue-existing').delete());
     });
 
-    it('allows Director to create, update, and delete venues with valid capacity', async () => {
+    it('denies Director from directly creating, updating, or deleting venues', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
-      await assertSucceeds(
+      await assertFails(
         db.collection('venues').doc('venue-director').set({
           name: 'Rehearsal Hall C',
           capacity: 60,
           address: '42 Main Street',
         })
       );
-      await assertSucceeds(
+      await assertFails(
         db.collection('venues').doc('venue-director').update({
           capacity: 75,
         })
       );
-      await assertSucceeds(db.collection('venues').doc('venue-director').delete());
+      await assertFails(db.collection('venues').doc('venue-director').delete());
     });
 
-    it('denies venue creation with non-positive capacity or empty name', async () => {
+    it('denies direct venue writes regardless of payload validity', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
-      await assertFails(
-        db.collection('venues').doc('venue-zero-cap').set({
-          name: 'Valid Name',
-          capacity: 0,
-        })
-      );
-      await assertFails(
-        db.collection('venues').doc('venue-neg-cap').set({
-          name: 'Valid Name',
-          capacity: -10,
-        })
-      );
-      await assertFails(
-        db.collection('venues').doc('venue-empty-name').set({
-          name: '',
-          capacity: 100,
-        })
-      );
+      await assertFails(db.collection('venues').doc('venue-zero-cap').set({ name: 'Valid Name', capacity: 0 }));
+      await assertFails(db.collection('venues').doc('venue-neg-cap').set({ name: 'Valid Name', capacity: -10 }));
+      await assertFails(db.collection('venues').doc('venue-empty-name').set({ name: '', capacity: 100 }));
     });
   });
 
@@ -1099,6 +1084,19 @@ describe('Firestore Security Rules', function () {
     it('allows directors to read the cast member directory', async () => {
       const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
       await assertSucceeds(db.collection('cast_members').get());
+    });
+  });
+
+  describe('16. Venue mutations use the trusted management callable', () => {
+    it('denies direct venue create, update, and delete even for Directors', async () => {
+      const db = testEnv.authenticatedContext(DIRECTOR_UID).firestore();
+      await assertFails(db.collection('venues').doc('venue-direct-create').set({
+        name: 'New Hall', capacity: 100,
+      }));
+      await assertFails(db.collection('venues').doc('venue-existing').update({
+        name: 'Renamed Hall',
+      }));
+      await assertFails(db.collection('venues').doc('venue-existing').delete());
     });
   });
 });

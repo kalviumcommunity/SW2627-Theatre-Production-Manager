@@ -1,15 +1,22 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../exceptions/audition_exceptions.dart';
 import '../models/audition_model.dart';
+import '../../venues/services/venue_availability_service.dart';
+import '../../venues/services/venue_booking_gateway.dart';
 
 class AuditionService {
   final FirebaseFirestore? _customFirestore;
+  final VenueBookingGateway? bookingGateway;
 
-  AuditionService({FirebaseFirestore? firestore})
+  AuditionService({FirebaseFirestore? firestore, this.bookingGateway})
     : _customFirestore = firestore;
+
+  VenueBookingGateway get _bookingGatewayOrDefault =>
+      bookingGateway ?? VenueAvailabilityService();
 
   FirebaseFirestore get firestore =>
       _customFirestore ?? FirebaseFirestore.instance;
@@ -111,9 +118,12 @@ class AuditionService {
       id: docRef.id,
       createdAt: audition.createdAt ?? DateTime.now(),
     );
-
-    await docRef.set(toSave.toMap());
-    return toSave;
+    final savedId = await _bookingGatewayOrDefault.saveBooking(
+      eventType: 'audition',
+      action: 'create',
+      booking: _bookingPayload(toSave),
+    );
+    return toSave.copyWith(id: savedId);
   }
 
   /// Updates an existing audition document in Firestore.
@@ -137,7 +147,11 @@ class AuditionService {
 
     final toUpdate = audition.copyWith(updatedAt: DateTime.now());
 
-    await docRef.update(toUpdate.toMap());
+    await _bookingGatewayOrDefault.saveBooking(
+      eventType: 'audition',
+      action: 'update',
+      booking: _bookingPayload(toUpdate),
+    );
   }
 
   /// Cancels an audition safely by changing its status to Cancelled.
@@ -148,23 +162,26 @@ class AuditionService {
       );
     }
 
-    final docRef = firestore.collection('auditions').doc(auditionId.trim());
-    final existingDoc = await docRef.get();
-    if (!existingDoc.exists) {
-      throw AuditionNotFoundException(
-        'Cannot cancel non-existent audition $auditionId',
+    try {
+      await _bookingGatewayOrDefault.cancelAudition(
+        auditionId: auditionId.trim(),
+        reason: reason,
       );
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'not-found') {
+        throw AuditionNotFoundException(
+          'Cannot cancel non-existent audition ${auditionId.trim()}',
+        );
+      }
+      rethrow;
+    } on FirebaseException catch (error) {
+      if (error.code == 'not-found') {
+        throw AuditionNotFoundException(
+          'Cannot cancel non-existent audition ${auditionId.trim()}',
+        );
+      }
+      rethrow;
     }
-
-    final updates = <String, dynamic>{
-      'status': AuditionStatus.cancelled,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (reason != null && reason.trim().isNotEmpty) {
-      updates['cancellationReason'] = reason.trim();
-    }
-
-    await docRef.update(updates);
   }
 
   /// Deletes an audition document permanently (for administrative/testing cleanup).
@@ -174,8 +191,25 @@ class AuditionService {
         'Audition ID is required to delete.',
       );
     }
-    await firestore.collection('auditions').doc(auditionId.trim()).delete();
+    await _bookingGatewayOrDefault.deleteBooking(
+      eventType: 'audition',
+      id: auditionId.trim(),
+    );
   }
+
+  static Map<String, dynamic> _bookingPayload(Audition audition) => {
+    'id': audition.id,
+    'productionId': audition.productionId,
+    'title': audition.title,
+    'venue': audition.venue,
+    if (audition.venueId != null) 'venueId': audition.venueId,
+    'startTime': audition.startTime,
+    'endTime': audition.endTime,
+    'description': audition.description,
+    'requirements': audition.requirements,
+    'status': audition.status,
+    'creatorUid': audition.creatorUid,
+  };
 
   /// Fetches an audition by ID.
   Future<Audition?> getAuditionById(String auditionId) async {

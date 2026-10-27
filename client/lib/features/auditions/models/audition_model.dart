@@ -13,6 +13,7 @@ class Audition {
   final String productionId;
   final String title;
   final String venue;
+  final String? venueId;
   final DateTime startTime;
   final DateTime endTime;
   final String description;
@@ -28,6 +29,7 @@ class Audition {
     required this.productionId,
     required this.title,
     required this.venue,
+    this.venueId,
     required this.startTime,
     required this.endTime,
     required this.creatorUid,
@@ -54,6 +56,7 @@ class Audition {
     String? productionId,
     String? title,
     String? venue,
+    String? venueId,
     DateTime? startTime,
     DateTime? endTime,
     String? description,
@@ -69,6 +72,7 @@ class Audition {
       productionId: productionId ?? this.productionId,
       title: title ?? this.title,
       venue: venue ?? this.venue,
+      venueId: venueId ?? this.venueId,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       description: description ?? this.description,
@@ -86,6 +90,8 @@ class Audition {
       'productionId': productionId.trim(),
       'title': title.trim(),
       'venue': venue.trim(),
+      if (venueId != null && venueId!.trim().isNotEmpty)
+        'venueId': venueId!.trim(),
       'startTime': Timestamp.fromDate(startTime),
       'endTime': Timestamp.fromDate(endTime),
       'description': description.trim(),
@@ -122,6 +128,7 @@ class Audition {
       productionId: map['productionId'] as String? ?? '',
       title: map['title'] as String? ?? 'Audition Session',
       venue: map['venue'] as String? ?? '',
+      venueId: map['venueId'] as String?,
       startTime: parsedStart,
       endTime: parsedEnd,
       description: map['description'] as String? ?? '',
