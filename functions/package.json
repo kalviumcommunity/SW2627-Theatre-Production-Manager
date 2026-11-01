@@ -9,6 +9,7 @@
     "test:unit": "node --test --test-concurrency=1 test/booking_validation.test.js test/callable_handler.test.js test/venue_management.test.js",
     "test:transaction": "node --test --test-concurrency=1 test/booking_logic.test.js",
     "test:integration": "node --test --test-concurrency=1 test/callable.integration.test.js",
+    "seed:demo": "node seed_demo.js",
     "test": "npm run test:unit && npm run test:transaction && npm run test:integration"
   },
   "dependencies": {

@@ -1,12 +1,12 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:client/features/auditions/screens/auditions_screen.dart';
 import 'package:client/features/auditions/services/audition_service.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
 import 'package:client/features/cast/screens/cast_screen.dart';
 import 'package:client/features/cast/services/cast_service.dart';
-import 'package:client/features/dashboard/widgets/coming_soon_view.dart';
 import 'package:client/features/dashboard/widgets/dashboard_nav_item.dart';
 import 'package:client/features/dashboard/widgets/dashboard_navigation.dart';
 import 'package:client/features/dashboard/widgets/metric_card.dart';
@@ -62,10 +62,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       widget.rehearsalService ?? RehearsalService();
   AuditionService get _auditionService =>
       widget.auditionService ?? AuditionService();
-  CastService get _castService =>
-      widget.castService ?? CastService();
-  VenueService get _venueService =>
-      widget.venueService ?? VenueService();
+  CastService get _castService => widget.castService ?? CastService();
+  VenueService get _venueService => widget.venueService ?? VenueService();
   ScheduleService get _scheduleService =>
       widget.scheduleService ??
       ScheduleService(
@@ -76,13 +74,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
   NotificationService get _notificationService =>
       widget.notificationService ?? NotificationService();
+  FirebaseFirestore? get _dashboardFirestore {
+    try {
+      return _userService.firestore;
+    } catch (_) {
+      return null;
+    }
+  }
 
   int _selectedNavIndex = 0;
   bool _isLoggingOut = false;
 
   String _userName = '';
-  String _userRole = 'Cast Member';
+  String _userRole = 'Unverified';
   String _userEmail = '';
+  String? _profileError;
+  late Future<_DashboardSummary> _dashboardSummary;
   StreamSubscription<Map<String, dynamic>?>? _profileSubscription;
 
   @override
@@ -90,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _authService = widget.authService ?? AuthService();
     _userService = widget.userService ?? UserService();
+    _dashboardSummary = _loadDashboardSummary();
     _loadUserProfile();
   }
 
@@ -103,9 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final user = _authService.currentUser;
       if (user == null) {
-        _userName = '';
-        _userRole = 'Cast Member';
-        _userEmail = '';
+        _profileError = 'No authenticated user profile is available.';
         return;
       }
 
@@ -127,8 +133,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .streamUserProfile(user.uid)
           .listen(
             (data) {
-              if (!mounted || data == null) return;
+              if (!mounted) return;
+              if (data == null || data['role'] == null) {
+                setState(() {
+                  _profileError =
+                      'Your profile or role is missing. Contact a director.';
+                  _userRole = 'Unverified';
+                });
+                return;
+              }
               setState(() {
+                _profileError = null;
                 if (data['name'] != null &&
                     data['name'].toString().trim().isNotEmpty) {
                   _userName = data['name'].toString().trim();
@@ -143,13 +158,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
               });
             },
-            onError: (_) {
-              // Fallback values retained on error
+            onError: (Object error) {
+              if (!mounted) return;
+              setState(() {
+                _profileError = 'Unable to load your profile: $error';
+                _userRole = 'Unverified';
+              });
             },
           );
-    } catch (_) {
-      // Retain fallback if Firebase is unavailable
+    } catch (error) {
+      _profileError = 'Unable to load your profile: $error';
     }
+  }
+
+  Future<_DashboardSummary> _loadDashboardSummary() async {
+    final results = await Future.wait([
+      _productionService.getProductions(),
+      _rehearsalService.getRehearsals(),
+      _auditionService.getAuditions(),
+      _venueService.getVenues(),
+    ]);
+    final now = DateTime.now();
+    final weekFromNow = now.add(const Duration(days: 7));
+    final rehearsals = results[1] as List;
+    final auditions = results[2] as List;
+    return _DashboardSummary(
+      productionCount: (results[0] as List).length,
+      upcomingRehearsalCount: rehearsals.where((rehearsal) {
+        final endTime = rehearsal.endTime as DateTime;
+        return endTime.isAfter(now) && endTime.isBefore(weekFromNow);
+      }).length,
+      upcomingAuditionCount: auditions.where((audition) {
+        return audition.status == 'Scheduled' &&
+            (audition.endTime as DateTime).isAfter(now);
+      }).length,
+      venueCount: (results[3] as List).length,
+    );
+  }
+
+  void _refreshDashboardSummary() {
+    setState(() {
+      _dashboardSummary = _loadDashboardSummary();
+    });
+  }
+
+  Future<void> _retryProfile() async {
+    await _profileSubscription?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _profileError = null;
+      _userRole = 'Unverified';
+    });
+    _loadUserProfile();
   }
 
   Future<void> _onLogoutPressed() async {
@@ -183,6 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _selectedNavIndex = index;
     });
+    if (index == 0) _refreshDashboardSummary();
   }
 
   @override
@@ -219,9 +280,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               children: [
                 if (isWideScreen) _buildDesktopTopBar(theme),
-                Expanded(
-                  child: _buildNavBody(theme),
-                ),
+                Expanded(child: _buildNavBody(theme)),
               ],
             ),
           ),
@@ -238,12 +297,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return ProductionsScreen(
           showAppBar: false,
           productionService: _productionService,
+          authService: _authService,
+          userService: _userService,
+          isDirector: _userRole == 'Director',
         );
       case 2:
         return AuditionsScreen(
           showAppBar: false,
           auditionService: _auditionService,
           productionService: _productionService,
+          authService: _authService,
+          userService: _userService,
+          isDirector: _userRole == 'Director',
         );
       case 3:
         return CastScreen(
@@ -258,6 +323,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           showAppBar: false,
           rehearsalService: _rehearsalService,
           productionService: _productionService,
+          authService: _authService,
+          userService: _userService,
+          isDirector: _userRole == 'Director',
         );
       case 5:
         return VenuesScreen(
@@ -283,12 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           authService: _authService,
         );
       default:
-        return ComingSoonView(
-          title: '${kDashboardNavItems[_selectedNavIndex].label} Module',
-          description: kDashboardNavItems[_selectedNavIndex].description,
-          icon: kDashboardNavItems[_selectedNavIndex].selectedIcon,
-          onBackToDashboard: () => _onNavigateTo(0),
-        );
+        return const Center(child: Text('Select a module from the menu.'));
     }
   }
 
@@ -505,6 +568,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           // Header / Welcome Banner
           _buildWelcomeBanner(theme),
+          if (_profileError != null) ...[
+            const SizedBox(height: 12),
+            MaterialBanner(
+              content: Text(_profileError!),
+              leading: Icon(
+                Icons.error_outline,
+                color: theme.colorScheme.error,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _retryProfile,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Overview Summary Cards Grid
@@ -521,7 +600,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Expanded(
                       flex: 6,
                       child: UpcomingRehearsalsCard(
-                        firestore: _userService.firestore,
+                        firestore: _dashboardFirestore,
                         onViewAllPressed: () =>
                             _onNavigateTo(4), // Rehearsals tab
                       ),
@@ -534,7 +613,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 return Column(
                   children: [
                     UpcomingRehearsalsCard(
-                      firestore: _userService.firestore,
+                      firestore: _dashboardFirestore,
                       onViewAllPressed: () => _onNavigateTo(4),
                     ),
                     const SizedBox(height: 24),
@@ -664,49 +743,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisCount = 2;
         }
 
-        final cards = [
-          MetricCard(
-            title: 'Total Productions',
-            value: '—',
-            subtitle: 'No active productions',
-            icon: Icons.theater_comedy,
-            accentColor: const Color(0xFF8B1E3F),
-            onTap: () => _onNavigateTo(1),
-          ),
-          MetricCard(
-            title: 'Upcoming Rehearsals',
-            value: '—',
-            subtitle: 'None scheduled this week',
-            icon: Icons.event_repeat_rounded,
-            accentColor: const Color(0xFFC8963E),
-            onTap: () => _onNavigateTo(4),
-          ),
-          MetricCard(
-            title: 'Auditions',
-            value: '—',
-            subtitle: 'No open auditions',
-            icon: Icons.how_to_reg_rounded,
-            accentColor: const Color(0xFF6B21A8),
-            onTap: () => _onNavigateTo(2),
-          ),
-          MetricCard(
-            title: 'Venues',
-            value: '—',
-            subtitle: 'No booked venues',
-            icon: Icons.location_city_rounded,
-            accentColor: const Color(0xFF00695C),
-            onTap: () => _onNavigateTo(5),
-          ),
-        ];
+        return FutureBuilder<_DashboardSummary>(
+          future: _dashboardSummary,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Column(
+                children: [
+                  MaterialBanner(
+                    content: Text(
+                      'Unable to load dashboard data: ${snapshot.error}',
+                    ),
+                    leading: Icon(
+                      Icons.error_outline,
+                      color: theme.colorScheme.error,
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: _refreshDashboardSummary,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                  GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.7,
+                    children: [
+                      MetricCard(
+                        title: 'Total Productions',
+                        value: '—',
+                        subtitle: 'Unavailable',
+                        icon: Icons.theater_comedy,
+                        accentColor: const Color(0xFF8B1E3F),
+                        onTap: () => _onNavigateTo(1),
+                      ),
+                      MetricCard(
+                        title: 'Upcoming Rehearsals',
+                        value: '—',
+                        subtitle: 'Unavailable',
+                        icon: Icons.event_repeat_rounded,
+                        accentColor: const Color(0xFFC8963E),
+                        onTap: () => _onNavigateTo(4),
+                      ),
+                      MetricCard(
+                        title: 'Auditions',
+                        value: '—',
+                        subtitle: 'Unavailable',
+                        icon: Icons.how_to_reg_rounded,
+                        accentColor: const Color(0xFF6B21A8),
+                        onTap: () => _onNavigateTo(2),
+                      ),
+                      MetricCard(
+                        title: 'Venues',
+                        value: '—',
+                        subtitle: 'Unavailable',
+                        icon: Icons.location_city_rounded,
+                        accentColor: const Color(0xFF00695C),
+                        onTap: () => _onNavigateTo(5),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            final summary = snapshot.data!;
+            final cards = [
+              MetricCard(
+                title: 'Total Productions',
+                value: '${summary.productionCount}',
+                subtitle: summary.productionCount == 0
+                    ? 'No productions yet'
+                    : 'Saved in your production list',
+                icon: Icons.theater_comedy,
+                accentColor: const Color(0xFF8B1E3F),
+                onTap: () => _onNavigateTo(1),
+              ),
+              MetricCard(
+                title: 'Upcoming Rehearsals',
+                value: '${summary.upcomingRehearsalCount}',
+                subtitle: 'Within the next seven days',
+                icon: Icons.event_repeat_rounded,
+                accentColor: const Color(0xFFC8963E),
+                onTap: () => _onNavigateTo(4),
+              ),
+              MetricCard(
+                title: 'Upcoming Auditions',
+                value: '${summary.upcomingAuditionCount}',
+                subtitle: 'Scheduled and not yet ended',
+                icon: Icons.how_to_reg_rounded,
+                accentColor: const Color(0xFF6B21A8),
+                onTap: () => _onNavigateTo(2),
+              ),
+              MetricCard(
+                title: 'Venues',
+                value: '${summary.venueCount}',
+                subtitle: 'Available in the venue directory',
+                icon: Icons.location_city_rounded,
+                accentColor: const Color(0xFF00695C),
+                onTap: () => _onNavigateTo(5),
+              ),
+            ];
 
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.7,
-          children: cards,
+            return GridView.count(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.7,
+              children: cards,
+            );
+          },
         );
       },
     );
@@ -885,4 +1038,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+}
+
+class _DashboardSummary {
+  final int productionCount;
+  final int upcomingRehearsalCount;
+  final int upcomingAuditionCount;
+  final int venueCount;
+
+  const _DashboardSummary({
+    required this.productionCount,
+    required this.upcomingRehearsalCount,
+    required this.upcomingAuditionCount,
+    required this.venueCount,
+  });
 }

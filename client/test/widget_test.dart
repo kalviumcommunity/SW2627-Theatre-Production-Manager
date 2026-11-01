@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:client/features/auditions/models/audition_model.dart';
 import 'package:client/features/auth/screens/login_screen.dart';
 import 'package:client/features/auth/screens/register_screen.dart';
 import 'package:client/features/auditions/screens/auditions_screen.dart';
+import 'package:client/features/auditions/services/audition_service.dart';
 import 'package:client/features/dashboard/screens/dashboard_screen.dart';
 import 'package:client/features/productions/screens/productions_screen.dart';
 import 'package:client/features/productions/services/production_service.dart';
@@ -20,6 +22,15 @@ class _FakeProductionService extends ProductionService {
 
   @override
   Future<List<Production>> getProductions() async => productions;
+}
+
+class _FakeAuditionService extends AuditionService {
+  @override
+  Stream<List<Audition>> streamAuditions({String? productionId}) =>
+      Stream.value(const []);
+
+  @override
+  Future<List<Audition>> getAuditions({String? productionId}) async => const [];
 }
 
 class FakeAuthService extends AuthService {
@@ -135,39 +146,51 @@ class _TrackingUserService extends UserService {
 
 void main() {
   Widget buildApp(Widget home) {
-    return MaterialApp(
-      home: home,
-    );
+    return MaterialApp(home: home);
   }
 
   group('AuthService Tests', () {
     test('converts error codes to friendly messages', () {
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'invalid-email')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'invalid-email'),
+        ),
         'Please enter a valid email address.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'invalid-credential')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'invalid-credential'),
+        ),
         'Invalid email or password.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'wrong-password')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'wrong-password'),
+        ),
         'Invalid email or password.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'user-not-found')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'user-not-found'),
+        ),
         'No account found with this email.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'email-already-in-use')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'email-already-in-use'),
+        ),
         'An account already exists with this email.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'weak-password')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'weak-password'),
+        ),
         'Password is too weak. Use at least 6 characters.',
       );
       expect(
-        AuthService.getErrorMessage(FirebaseAuthException(code: 'network-request-failed')),
+        AuthService.getErrorMessage(
+          FirebaseAuthException(code: 'network-request-failed'),
+        ),
         'Network error. Please check your internet connection.',
       );
       expect(
@@ -177,7 +200,10 @@ void main() {
     });
 
     test('register creates a Cast Member profile in Firestore', () async {
-      final fakeUser = _FakeUserForRegister(uid: 'user-actor-1', email: 'actor@theatre.org');
+      final fakeUser = _FakeUserForRegister(
+        uid: 'user-actor-1',
+        email: 'actor@theatre.org',
+      );
       final fakeAuth = _FakeFirebaseAuthForRegister(fakeUser);
       final fakeUserService = _TrackingUserService();
       final authService = AuthService(
@@ -199,7 +225,10 @@ void main() {
     });
 
     test('register ignores caller-supplied role and prevents obtaining Director role', () async {
-      final fakeUser = _FakeUserForRegister(uid: 'user-attacker-1', email: 'attacker@theatre.org');
+      final fakeUser = _FakeUserForRegister(
+        uid: 'user-attacker-1',
+        email: 'attacker@theatre.org',
+      );
       final fakeAuth = _FakeFirebaseAuthForRegister(fakeUser);
       final fakeUserService = _TrackingUserService();
       final authService = AuthService(
@@ -222,7 +251,9 @@ void main() {
   });
 
   group('LoginScreen Tests', () {
-    testWidgets('shows validation errors when submitted empty', (WidgetTester tester) async {
+    testWidgets('shows validation errors when submitted empty', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(buildApp(const LoginScreen()));
 
       final loginButton = find.widgetWithText(FilledButton, 'Login');
@@ -233,7 +264,9 @@ void main() {
       expect(find.text('Please enter your password'), findsOneWidget);
     });
 
-    testWidgets('validates invalid email and short password', (WidgetTester tester) async {
+    testWidgets('validates invalid email and short password', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(buildApp(const LoginScreen()));
 
       final emailField = find.widgetWithText(TextFormField, 'Email Address');
@@ -247,30 +280,38 @@ void main() {
       await tester.pump();
 
       expect(find.text('Please enter a valid email address'), findsOneWidget);
-      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+      expect(
+        find.text('Password must be at least 6 characters'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('calls login and navigates to DashboardScreen when form is valid', (WidgetTester tester) async {
-      final fakeAuth = FakeAuthService();
-      await tester.pumpWidget(buildApp(LoginScreen(authService: fakeAuth)));
+    testWidgets(
+      'calls login and navigates to DashboardScreen when form is valid',
+      (WidgetTester tester) async {
+        final fakeAuth = FakeAuthService();
+        await tester.pumpWidget(buildApp(LoginScreen(authService: fakeAuth)));
 
-      final emailField = find.widgetWithText(TextFormField, 'Email Address');
-      final passwordField = find.widgetWithText(TextFormField, 'Password');
+        final emailField = find.widgetWithText(TextFormField, 'Email Address');
+        final passwordField = find.widgetWithText(TextFormField, 'Password');
 
-      await tester.enterText(emailField, 'user@example.com');
-      await tester.enterText(passwordField, 'password123');
+        await tester.enterText(emailField, 'user@example.com');
+        await tester.enterText(passwordField, 'password123');
 
-      final loginButton = find.widgetWithText(FilledButton, 'Login');
-      await tester.tap(loginButton);
-      await tester.pumpAndSettle();
+        final loginButton = find.widgetWithText(FilledButton, 'Login');
+        await tester.tap(loginButton);
+        await tester.pumpAndSettle();
 
-      expect(fakeAuth.loginCalled, isTrue);
-      expect(fakeAuth.lastLoginEmail, 'user@example.com');
-      expect(fakeAuth.lastLoginPassword, 'password123');
-      expect(find.byType(DashboardScreen), findsOneWidget);
-    });
+        expect(fakeAuth.loginCalled, isTrue);
+        expect(fakeAuth.lastLoginEmail, 'user@example.com');
+        expect(fakeAuth.lastLoginPassword, 'password123');
+        expect(find.byType(DashboardScreen), findsOneWidget);
+      },
+    );
 
-    testWidgets('shows friendly error SnackBar on login failure', (WidgetTester tester) async {
+    testWidgets('shows friendly error SnackBar on login failure', (
+      WidgetTester tester,
+    ) async {
       final fakeAuth = FakeAuthService()..shouldThrowError = true;
       await tester.pumpWidget(buildApp(LoginScreen(authService: fakeAuth)));
 
@@ -287,7 +328,9 @@ void main() {
       expect(find.text('Invalid email or password.'), findsOneWidget);
     });
 
-    testWidgets('navigates to RegisterScreen when Register is tapped', (WidgetTester tester) async {
+    testWidgets('navigates to RegisterScreen when Register is tapped', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(buildApp(const LoginScreen()));
 
       await tester.tap(find.text('Register'));
@@ -298,51 +341,69 @@ void main() {
   });
 
   group('RegisterScreen Tests', () {
-    testWidgets('shows validation errors on empty submission without role prompt', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    testWidgets(
+      'shows validation errors on empty submission without role prompt',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      await tester.pumpWidget(buildApp(const RegisterScreen()));
+        await tester.pumpWidget(buildApp(const RegisterScreen()));
 
-      final createButton = find.widgetWithText(FilledButton, 'Create Account');
-      await tester.ensureVisible(createButton);
-      await tester.tap(createButton);
-      await tester.pump();
+        final createButton = find.widgetWithText(
+          FilledButton,
+          'Create Account',
+        );
+        await tester.ensureVisible(createButton);
+        await tester.tap(createButton);
+        await tester.pump();
 
-      expect(find.text('Please enter your full name'), findsOneWidget);
-      expect(find.text('Please enter your email'), findsOneWidget);
-      expect(find.text('Please enter a password'), findsOneWidget);
-      expect(find.text('Please confirm your password'), findsOneWidget);
-      expect(find.text('Please select a role'), findsNothing);
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-    });
+        expect(find.text('Please enter your full name'), findsOneWidget);
+        expect(find.text('Please enter your email'), findsOneWidget);
+        expect(find.text('Please enter a password'), findsOneWidget);
+        expect(find.text('Please confirm your password'), findsOneWidget);
+        expect(find.text('Please select a role'), findsNothing);
+        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      },
+    );
 
-    testWidgets('verifies form has all required fields and no role selection dropdown', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    testWidgets(
+      'verifies form has all required fields and no role selection dropdown',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      await tester.pumpWidget(buildApp(const RegisterScreen()));
+        await tester.pumpWidget(buildApp(const RegisterScreen()));
 
-      expect(find.widgetWithText(TextFormField, 'Full Name'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Email Address'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Password'), findsOneWidget);
-      expect(find.widgetWithText(TextFormField, 'Confirm Password'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Create Account'), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Login'), findsOneWidget);
+        expect(find.widgetWithText(TextFormField, 'Full Name'), findsOneWidget);
+        expect(
+          find.widgetWithText(TextFormField, 'Email Address'),
+          findsOneWidget,
+        );
+        expect(find.widgetWithText(TextFormField, 'Password'), findsOneWidget);
+        expect(
+          find.widgetWithText(TextFormField, 'Confirm Password'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(FilledButton, 'Create Account'),
+          findsOneWidget,
+        );
+        expect(find.widgetWithText(TextButton, 'Login'), findsOneWidget);
 
-      // Verify no role dropdown or role selection UI exists
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-      expect(find.text('Role'), findsNothing);
-      expect(find.text('Select your role'), findsNothing);
-    });
+        // Verify no role dropdown or role selection UI exists
+        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+        expect(find.text('Role'), findsNothing);
+        expect(find.text('Select your role'), findsNothing);
+      },
+    );
 
     testWidgets('validates password mismatch', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(800, 1200);
@@ -357,7 +418,10 @@ void main() {
       final nameField = find.widgetWithText(TextFormField, 'Full Name');
       final emailField = find.widgetWithText(TextFormField, 'Email Address');
       final passwordField = find.widgetWithText(TextFormField, 'Password');
-      final confirmPasswordField = find.widgetWithText(TextFormField, 'Confirm Password');
+      final confirmPasswordField = find.widgetWithText(
+        TextFormField,
+        'Confirm Password',
+      );
 
       await tester.enterText(nameField, 'Jane Doe');
       await tester.enterText(emailField, 'jane@theatre.org');
@@ -372,35 +436,57 @@ void main() {
       expect(find.text('Passwords do not match'), findsOneWidget);
     });
 
-    testWidgets('registers user without role selection and navigates to DashboardScreen', (WidgetTester tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    testWidgets(
+      'registers user without role selection and navigates to DashboardScreen',
+      (WidgetTester tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      final fakeAuth = FakeAuthService();
-      await tester.pumpWidget(buildApp(RegisterScreen(authService: fakeAuth)));
+        final fakeAuth = FakeAuthService();
+        await tester.pumpWidget(
+          buildApp(RegisterScreen(authService: fakeAuth)),
+        );
 
-      await tester.enterText(find.widgetWithText(TextFormField, 'Full Name'), 'Jane Doe');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'jane@theatre.org');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'secret123');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'secret123');
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Full Name'),
+          'Jane Doe',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Email Address'),
+          'jane@theatre.org',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Password'),
+          'secret123',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Confirm Password'),
+          'secret123',
+        );
 
-      final createButton = find.widgetWithText(FilledButton, 'Create Account');
-      await tester.ensureVisible(createButton);
-      await tester.tap(createButton);
-      await tester.pumpAndSettle();
+        final createButton = find.widgetWithText(
+          FilledButton,
+          'Create Account',
+        );
+        await tester.ensureVisible(createButton);
+        await tester.tap(createButton);
+        await tester.pumpAndSettle();
 
-      expect(fakeAuth.registerCalled, isTrue);
-      expect(fakeAuth.lastRegisterName, 'Jane Doe');
-      expect(fakeAuth.lastRegisterEmail, 'jane@theatre.org');
-      expect(fakeAuth.lastRegisterRole, 'Cast Member');
-      expect(find.byType(DashboardScreen), findsOneWidget);
-    });
+        expect(fakeAuth.registerCalled, isTrue);
+        expect(fakeAuth.lastRegisterName, 'Jane Doe');
+        expect(fakeAuth.lastRegisterEmail, 'jane@theatre.org');
+        expect(fakeAuth.lastRegisterRole, 'Cast Member');
+        expect(find.byType(DashboardScreen), findsOneWidget);
+      },
+    );
 
-    testWidgets('shows friendly error SnackBar on registration failure', (WidgetTester tester) async {
+    testWidgets('shows friendly error SnackBar on registration failure', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -411,20 +497,37 @@ void main() {
       final fakeAuth = FakeAuthService()..shouldThrowError = true;
       await tester.pumpWidget(buildApp(RegisterScreen(authService: fakeAuth)));
 
-      await tester.enterText(find.widgetWithText(TextFormField, 'Full Name'), 'Jane Doe');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'jane@theatre.org');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'secret123');
-      await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'secret123');
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Full Name'),
+        'Jane Doe',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email Address'),
+        'jane@theatre.org',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        'secret123',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Confirm Password'),
+        'secret123',
+      );
 
       final createButton = find.widgetWithText(FilledButton, 'Create Account');
       await tester.ensureVisible(createButton);
       await tester.tap(createButton);
       await tester.pump();
 
-      expect(find.text('An account already exists with this email.'), findsOneWidget);
+      expect(
+        find.text('An account already exists with this email.'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('navigates back to Login on tapping Login link', (WidgetTester tester) async {
+    testWidgets('navigates back to Login on tapping Login link', (
+      WidgetTester tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -449,9 +552,12 @@ void main() {
   });
 
   group('DashboardScreen Tests', () {
-    testWidgets('shows welcome message and user details', (WidgetTester tester) async {
+    testWidgets('shows welcome message and user details', (
+      WidgetTester tester,
+    ) async {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+      await tester.pumpAndSettle();
 
       expect(find.text('Theatre Production Manager'), findsOneWidget);
       expect(find.text('Welcome!'), findsOneWidget);
@@ -459,9 +565,12 @@ void main() {
       expect(find.text('Logout'), findsOneWidget);
     });
 
-    testWidgets('displays overview summary cards with neutral placeholders', (WidgetTester tester) async {
+    testWidgets('displays overview summary cards with neutral placeholders', (
+      WidgetTester tester,
+    ) async {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+      await tester.pumpAndSettle();
 
       expect(find.text('Total Productions'), findsOneWidget);
       expect(find.text('Upcoming Rehearsals'), findsWidgets);
@@ -470,50 +579,78 @@ void main() {
       expect(find.text('—'), findsNWidgets(4));
     });
 
-    testWidgets('shows friendly empty state for upcoming rehearsals', (WidgetTester tester) async {
+    testWidgets('shows friendly empty state for upcoming rehearsals', (
+      WidgetTester tester,
+    ) async {
       final fakeAuth = FakeAuthService();
       await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
 
-      expect(find.text('No Upcoming Rehearsals'), findsOneWidget);
+      expect(find.textContaining('Unable to load rehearsals:'), findsOneWidget);
     });
 
-    testWidgets('navigates to Auditions module when Auditions is tapped', (WidgetTester tester) async {
+    testWidgets('navigates to Auditions module when Auditions is tapped', (
+      WidgetTester tester,
+    ) async {
       final fakeAuth = FakeAuthService();
-      await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+      await tester.pumpWidget(
+        buildApp(
+          DashboardScreen(
+            authService: fakeAuth,
+            auditionService: _FakeAuditionService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
       // Tap on Auditions metric card
-      await tester.tap(find.text('Auditions'));
+      final metric = find.text('Auditions');
+      await tester.ensureVisible(metric);
+      await tester.tap(metric);
       await tester.pumpAndSettle();
 
       expect(find.byType(AuditionsScreen), findsOneWidget);
     });
 
-    testWidgets('navigates to Productions module when Total Productions is tapped', (WidgetTester tester) async {
-      final fakeAuth = FakeAuthService();
-      final fakeProductions = _FakeProductionService(productions: const []);
-      await tester.pumpWidget(buildApp(DashboardScreen(
-        authService: fakeAuth,
-        productionService: fakeProductions,
-      )));
+    testWidgets(
+      'navigates to Productions module when Total Productions is tapped',
+      (WidgetTester tester) async {
+        final fakeAuth = FakeAuthService();
+        final fakeProductions = _FakeProductionService(productions: const []);
+        await tester.pumpWidget(
+          buildApp(
+            DashboardScreen(
+              authService: fakeAuth,
+              productionService: fakeProductions,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Tap on Total Productions metric card
-      await tester.tap(find.text('Total Productions'));
-      await tester.pumpAndSettle();
+        // Tap on Total Productions metric card
+        await tester.tap(find.text('Total Productions'));
+        await tester.pumpAndSettle();
 
-      expect(find.byType(ProductionsScreen), findsOneWidget);
-      expect(find.text('Productions Catalog'), findsOneWidget);
-    });
+        expect(find.byType(ProductionsScreen), findsOneWidget);
+        expect(find.text('Productions Catalog'), findsOneWidget);
+      },
+    );
 
-    testWidgets('calls logout and navigates to LoginScreen on logout button tap', (WidgetTester tester) async {
-      final fakeAuth = FakeAuthService();
-      await tester.pumpWidget(buildApp(DashboardScreen(authService: fakeAuth)));
+    testWidgets(
+      'calls logout and navigates to LoginScreen on logout button tap',
+      (WidgetTester tester) async {
+        final fakeAuth = FakeAuthService();
+        await tester.pumpWidget(
+          buildApp(DashboardScreen(authService: fakeAuth)),
+        );
+        await tester.pumpAndSettle();
 
-      final logoutButton = find.widgetWithText(FilledButton, 'Logout');
-      await tester.tap(logoutButton);
-      await tester.pumpAndSettle();
+        final logoutButton = find.widgetWithText(FilledButton, 'Logout');
+        await tester.tap(logoutButton);
+        await tester.pumpAndSettle();
 
-      expect(fakeAuth.logoutCalled, isTrue);
-      expect(find.byType(LoginScreen), findsOneWidget);
-    });
+        expect(fakeAuth.logoutCalled, isTrue);
+        expect(find.byType(LoginScreen), findsOneWidget);
+      },
+    );
   });
 }

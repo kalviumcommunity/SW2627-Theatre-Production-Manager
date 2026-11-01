@@ -3,6 +3,7 @@ import 'package:client/features/productions/models/production_model.dart';
 import 'package:client/features/productions/services/production_service.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
+
 import '../models/cast_assignment_model.dart';
 import '../services/cast_service.dart';
 import '../widgets/cast_member_card.dart';
@@ -39,7 +40,9 @@ class _CastScreenState extends State<CastScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedProductionId;
-  String _userRole = 'Cast Member';
+  String _userRole = 'Unverified';
+  String? _profileError;
+  String? _productionError;
 
   List<Production> _productions = [];
   Map<String, String> _productionTitles = {};
@@ -64,18 +67,29 @@ class _CastScreenState extends State<CastScreen> {
     super.dispose();
   }
 
-  void _loadUserRole() async {
+  Future<void> _loadUserRole() async {
     try {
       final user = _authService.currentUser;
-      if (user != null) {
-        final profile = await _userService.getUserProfile(user.uid);
-        if (mounted && profile != null && profile['role'] != null) {
-          setState(() {
-            _userRole = profile['role'].toString();
-          });
-        }
+      if (user == null) throw StateError('Sign in to load cast permissions.');
+      final profile = await _userService.getUserProfile(user.uid);
+      final role = profile?['role']?.toString().trim();
+      if (role == null || role.isEmpty) {
+        throw StateError('Your role is missing from your user profile.');
       }
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _userRole = role;
+          _profileError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _userRole = 'Unverified';
+          _profileError = 'Unable to load your role: $error';
+        });
+      }
+    }
   }
 
   bool get _isDirector => _userRole == 'Director';
@@ -87,9 +101,12 @@ class _CastScreenState extends State<CastScreen> {
         setState(() {
           _productions = prods;
           _productionTitles = {for (var p in prods) p.id: p.title};
+          _productionError = null;
         });
       }
-    } catch (_) {}
+    } catch (error) {
+      if (mounted) setState(() => _productionError = error.toString());
+    }
   }
 
   void _navigateToAssignRole([CastAssignment? assignment]) {
@@ -165,8 +182,11 @@ class _CastScreenState extends State<CastScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline,
-                    size: 48, color: theme.colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: theme.colorScheme.error,
+                ),
                 const SizedBox(height: 12),
                 Text('Error loading cast roster: ${snapshot.error}'),
               ],
@@ -188,6 +208,29 @@ class _CastScreenState extends State<CastScreen> {
 
         return Column(
           children: [
+            if (_profileError != null || _productionError != null)
+              MaterialBanner(
+                content: Text(
+                  [
+                    ?_profileError,
+                    if (_productionError != null)
+                      'Unable to load production filters: $_productionError',
+                  ].join('\n'),
+                ),
+                leading: Icon(
+                  Icons.error_outline,
+                  color: theme.colorScheme.error,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      _loadUserRole();
+                      _loadProductions();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             // Controls: search + production filter dropdown + assign button
             Container(
               padding: const EdgeInsets.all(16),
@@ -279,8 +322,9 @@ class _CastScreenState extends State<CastScreen> {
                                 selected: isSel,
                                 onSelected: (selected) {
                                   setState(() {
-                                    _selectedProductionId =
-                                        selected ? p.id : null;
+                                    _selectedProductionId = selected
+                                        ? p.id
+                                        : null;
                                   });
                                 },
                               ),
@@ -299,7 +343,9 @@ class _CastScreenState extends State<CastScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.25,
+              ),
               child: Row(
                 children: [
                   Text(
@@ -364,17 +410,18 @@ class _CastScreenState extends State<CastScreen> {
                             padding: const EdgeInsets.all(16),
                             gridDelegate:
                                 const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 450,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                              mainAxisExtent: 180,
-                            ),
+                                  maxCrossAxisExtent: 450,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  mainAxisExtent: 180,
+                                ),
                             itemCount: filteredAssignments.length,
                             itemBuilder: (context, index) {
                               final a = filteredAssignments[index];
                               return CastMemberCard(
                                 assignment: a,
-                                productionTitle: _productionTitles[a.productionId],
+                                productionTitle:
+                                    _productionTitles[a.productionId],
                                 isDirector: _isDirector,
                                 onEdit: () => _navigateToAssignRole(a),
                                 onRemove: () => _removeAssignment(a),
@@ -392,7 +439,8 @@ class _CastScreenState extends State<CastScreen> {
                             final a = filteredAssignments[index];
                             return CastMemberCard(
                               assignment: a,
-                              productionTitle: _productionTitles[a.productionId],
+                              productionTitle:
+                                  _productionTitles[a.productionId],
                               isDirector: _isDirector,
                               onEdit: () => _navigateToAssignRole(a),
                               onRemove: () => _removeAssignment(a),
@@ -410,8 +458,10 @@ class _CastScreenState extends State<CastScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Cast Management',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Cast Management',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
         body: content,
       );

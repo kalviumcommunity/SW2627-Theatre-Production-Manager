@@ -1,12 +1,14 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/production_model.dart';
 
 class ProductionService {
   final FirebaseFirestore? _customFirestore;
 
   ProductionService({FirebaseFirestore? firestore})
-      : _customFirestore = firestore;
+    : _customFirestore = firestore;
 
   FirebaseFirestore get firestore =>
       _customFirestore ?? FirebaseFirestore.instance;
@@ -16,8 +18,7 @@ class ProductionService {
     Production(
       id: 'sample-1',
       title: 'The Phantom of the Opera',
-      description:
-          'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daaé.',
+      description: 'A musical masterpiece following the masked musical genius living beneath the Paris Opera House and his obsession with soprano Christine Daaé.',
       startDate: DateTime(2026, 10, 1),
       endDate: DateTime(2026, 11, 25),
       status: ProductionStatus.inRehearsal,
@@ -27,8 +28,7 @@ class ProductionService {
     Production(
       id: 'sample-2',
       title: 'A Midsummer Night\'s Dream',
-      description:
-          'Shakespeare\'s whimsical comedy of enchanted forests, mischievous fairies, and tangled Athenian lovers under the spell of Puck.',
+      description: 'Shakespeare\'s whimsical comedy of enchanted forests, mischievous fairies, and tangled Athenian lovers under the spell of Puck.',
       startDate: DateTime(2026, 11, 20),
       endDate: DateTime(2027, 1, 15),
       status: ProductionStatus.planning,
@@ -38,8 +38,7 @@ class ProductionService {
     Production(
       id: 'sample-3',
       title: 'Les Misérables',
-      description:
-          'An epic tale of passion, sacrifice, and redemption set against the backdrop of 19th-century revolutionary France.',
+      description: 'An epic tale of passion, sacrifice, and redemption set against the backdrop of 19th-century revolutionary France.',
       startDate: DateTime(2026, 7, 1),
       endDate: DateTime(2026, 9, 30),
       status: ProductionStatus.completed,
@@ -49,8 +48,7 @@ class ProductionService {
     Production(
       id: 'sample-4',
       title: 'The Crucible',
-      description:
-          'Arthur Miller\'s chilling allegory of mass hysteria and moral compromise in Salem, Massachusetts.',
+      description: 'Arthur Miller\'s chilling allegory of mass hysteria and moral compromise in Salem, Massachusetts.',
       startDate: DateTime(2026, 12, 10),
       endDate: DateTime(2027, 2, 28),
       status: ProductionStatus.planning,
@@ -65,22 +63,18 @@ class ProductionService {
   List<Production> get sampleProductions => demoProductions;
 
   /// Streams productions from Cloud Firestore.
-  /// Empty collections emit an empty list. Stream errors are propagated to the caller.
+  /// Empty collections emit an empty list. Stream errors remain visible to the caller.
   Stream<List<Production>> streamProductions() {
-    try {
-      return firestore.collection('productions').snapshots().map((snapshot) {
-        if (snapshot.docs.isEmpty) {
-          return <Production>[];
-        }
-        final list = snapshot.docs
-            .map((doc) => Production.fromFirestore(doc))
-            .toList();
-        _sortProductions(list);
-        return list;
-      });
-    } catch (_) {
-      return Stream.value(<Production>[]);
-    }
+    return firestore.collection('productions').snapshots().map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        return <Production>[];
+      }
+      final list = snapshot.docs
+          .map((doc) => Production.fromFirestore(doc))
+          .toList();
+      _sortProductions(list);
+      return list;
+    });
   }
 
   /// Fetches production list from Firestore.
@@ -100,7 +94,9 @@ class ProductionService {
   /// Adds a new production to Firestore and returns the production with its
   /// real Firestore-generated document ID. Propagates failures to the caller.
   Future<Production> createProduction(Production production) async {
-    final docRef = await firestore.collection('productions').add(production.toMap());
+    final docRef = await firestore
+        .collection('productions')
+        .add(production.toMap());
     return production.copyWith(id: docRef.id);
   }
 
@@ -127,8 +123,10 @@ class ProductionService {
 
   static void _sortProductions(List<Production> list) {
     list.sort((a, b) {
-      final aDate = a.startDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.startDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final aDate =
+          a.startDate ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          b.startDate ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final cmp = bDate.compareTo(aDate);
       if (cmp != 0) return cmp;
       if (a.createdAt != null && b.createdAt != null) {

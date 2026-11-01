@@ -10,12 +10,14 @@ class AuditionDetailsScreen extends StatefulWidget {
   final Audition audition;
   final AuditionService? auditionService;
   final ProductionService? productionService;
+  final bool isDirector;
 
   const AuditionDetailsScreen({
     super.key,
     required this.audition,
     this.auditionService,
     this.productionService,
+    this.isDirector = true,
   });
 
   @override

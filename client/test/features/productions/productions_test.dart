@@ -264,6 +264,30 @@ void main() {
       expect(find.text('The Phantom of the Opera'), findsNothing);
     });
 
+    testWidgets('hides Add Production button when user is a Cast Member', (WidgetTester tester) async {
+      final fakeService = FakeProductionService(
+        initialProductions: [
+          Production(
+            id: '1',
+            title: 'The Phantom of the Opera',
+            status: ProductionStatus.inRehearsal,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        buildApp(ProductionsScreen(
+          productionService: fakeService,
+          isDirector: false,
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Production'), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+    });
+
     testWidgets('surfaces error SnackBar when delete fails from card popup menu', (WidgetTester tester) async {
       final fakeService = FakeProductionService(
         initialProductions: [

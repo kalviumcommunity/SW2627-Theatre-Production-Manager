@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:client/services/auth_service.dart';
 
@@ -48,6 +47,7 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
   bool _isSaving = false;
   List<Production> _availableProductions = [];
   bool _loadingProductions = false;
+  String? _productionLoadError;
 
   late final RehearsalService _service;
   late final ProductionService _productionService;
@@ -86,28 +86,23 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
   }
 
   Future<void> _loadAvailableProductions() async {
-    // Only attempt loading if productionService was provided or in real app runtime with Firebase initialized
-    final hasInjectedService = widget.productionService != null;
-    final isFirebaseReady = Firebase.apps.isNotEmpty;
-    if (!hasInjectedService && !isFirebaseReady) return;
-
     setState(() {
       _loadingProductions = true;
+      _productionLoadError = null;
     });
     try {
-      final productions = await _productionService.getProductions().timeout(
-        const Duration(seconds: 2),
-      );
+      final productions = await _productionService.getProductions();
       if (mounted) {
         setState(() {
           _availableProductions = productions;
           _loadingProductions = false;
         });
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         setState(() {
           _loadingProductions = false;
+          _productionLoadError = error.toString();
         });
       }
     }
@@ -272,19 +267,14 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
     final venueText = _venueController.text.trim();
     final productionIdText = _productionIdController.text.trim();
 
-    // Determine creator UID
-    String creatorUid = 'cast-member';
+    // The callable derives creatorUid from the authenticated context. Never
+    // fabricate a UID when the client is signed out.
+    String creatorUid = '';
     try {
-      final user = _authService.currentUser;
-      if (user?.uid.isNotEmpty == true) {
-        creatorUid = user!.uid;
-      } else if (widget.initialRehearsal?.creatorUid.isNotEmpty == true) {
-        creatorUid = widget.initialRehearsal!.creatorUid;
-      }
+      creatorUid = _authService.currentUser?.uid ?? '';
     } catch (_) {
-      if (widget.initialRehearsal?.creatorUid.isNotEmpty == true) {
-        creatorUid = widget.initialRehearsal!.creatorUid;
-      }
+      // Firebase auth may not be initialized in offline form tests; the
+      // callable still enforces auth before persisting anything.
     }
 
     final rehearsal = Rehearsal(
@@ -573,6 +563,33 @@ class _AddRehearsalScreenState extends State<AddRehearsalScreen> {
                     },
                     textInputAction: TextInputAction.next,
                   ),
+
+                  if (_productionLoadError != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Could not load productions: $_productionLoadError',
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loadAvailableProductions,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ] else if (!_loadingProductions &&
+                      _availableProductions.isEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'No productions found. Create a production before scheduling a rehearsal.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
 
                   // Quick production selection chips if productions are loaded
                   if (_availableProductions.isNotEmpty) ...[

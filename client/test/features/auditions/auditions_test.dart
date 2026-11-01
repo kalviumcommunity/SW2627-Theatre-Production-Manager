@@ -244,6 +244,20 @@ void main() {
       expect(find.text('Schedule Audition'), findsWidgets);
     });
 
+    testWidgets('hides Schedule Audition button when user is a Cast Member', (tester) async {
+      final fakeService = FakeAuditionService();
+      await tester.pumpWidget(
+        createTestApp(AuditionsScreen(
+          auditionService: fakeService,
+          isDirector: false,
+        )),
+      );
+      await tester.pump();
+
+      expect(find.text('Schedule Audition'), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
+    });
+
     testWidgets('renders list of auditions', (tester) async {
       final fakeService = FakeAuditionService(
         initialAuditions: [

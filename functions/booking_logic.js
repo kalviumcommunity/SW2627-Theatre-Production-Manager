@@ -278,6 +278,7 @@ async function transactBooking({ db, eventType, action, input, uid }) {
   const collectionName = eventType === 'audition' ? 'auditions' : 'rehearsals';
   const eventId = input.id.trim();
   const eventRef = db.collection(collectionName).doc(eventId);
+  const notificationRef = db.collection('notifications').doc();
 
   return db.runTransaction(async (transaction) => {
     const existingSnapshot = action === 'create' ? null : await transaction.get(eventRef);
@@ -372,6 +373,7 @@ async function transactBooking({ db, eventType, action, input, uid }) {
 
     if (action === 'delete') {
       transaction.delete(eventRef);
+      transaction.set(notificationRef, bookingNotification(eventType, action, existing, eventId));
       return { id: eventId };
     }
     if (action === 'cancel') {
@@ -382,12 +384,34 @@ async function transactBooking({ db, eventType, action, input, uid }) {
           : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      transaction.set(notificationRef, bookingNotification(eventType, action, existing, eventId));
       return { id: eventId };
     }
 
     transaction.set(eventRef, newData);
+    transaction.set(notificationRef, bookingNotification(eventType, action, newData, eventId));
     return { id: eventId };
   });
+}
+
+function bookingNotification(eventType, action, booking, eventId) {
+  const label = eventType === 'audition' ? 'Audition' : 'Rehearsal';
+  const verb = {
+    create: 'scheduled',
+    update: 'updated',
+    cancel: 'cancelled',
+    delete: 'removed',
+  }[action];
+  return {
+    recipientUid: 'all',
+    title: `${label} ${verb}: ${booking?.title || label.toLowerCase()}`,
+    message: `${booking?.title || label} was ${verb}.`,
+    type: eventType === 'audition' ? 'audition_change' : 'rehearsal_change',
+    relatedId: eventId,
+    read: false,
+    readBy: [],
+    createdAt: FieldValue.serverTimestamp(),
+  };
 }
 
 module.exports = {

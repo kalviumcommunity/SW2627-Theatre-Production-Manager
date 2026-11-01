@@ -14,6 +14,7 @@ class ProductionDetailsScreen extends StatefulWidget {
   final ProductionService? productionService;
   final AuditionService? auditionService;
   final RehearsalService? rehearsalService;
+  final bool isDirector;
 
   const ProductionDetailsScreen({
     super.key,
@@ -21,6 +22,7 @@ class ProductionDetailsScreen extends StatefulWidget {
     this.productionService,
     this.auditionService,
     this.rehearsalService,
+    this.isDirector = true,
   });
 
   @override
@@ -127,22 +129,24 @@ class _ProductionDetailsScreenState extends State<ProductionDetailsScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit Production',
-            onPressed: _isDeleting ? null : _navigateToEdit,
-          ),
-          IconButton(
-            icon: _isDeleting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.delete_outline, color: Colors.redAccent),
-            tooltip: 'Delete Production',
-            onPressed: _isDeleting ? null : _confirmDelete,
-          ),
+          if (widget.isDirector) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit Production',
+              onPressed: _isDeleting ? null : _navigateToEdit,
+            ),
+            IconButton(
+              icon: _isDeleting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_outline, color: Colors.redAccent),
+              tooltip: 'Delete Production',
+              onPressed: _isDeleting ? null : _confirmDelete,
+            ),
+          ],
         ],
       ),
       body: SingleChildScrollView(

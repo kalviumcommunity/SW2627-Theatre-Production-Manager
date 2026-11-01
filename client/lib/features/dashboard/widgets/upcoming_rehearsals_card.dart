@@ -11,19 +11,16 @@ class UpcomingRehearsalsCard extends StatelessWidget {
     this.onViewAllPressed,
   });
 
-  FirebaseFirestore? get _firestore {
-    if (firestore != null) return firestore;
-    try {
-      return FirebaseFirestore.instance;
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fs = _firestore;
+    FirebaseFirestore? fs;
+    Object? initializationError;
+    try {
+      fs = firestore ?? FirebaseFirestore.instance;
+    } catch (error) {
+      initializationError = error;
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -93,62 +90,77 @@ class UpcomingRehearsalsCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // StreamBuilder or empty state if Firestore is null
-          if (fs == null)
-            _buildEmptyState(context, theme)
+          if (initializationError != null)
+            _buildErrorState(theme, initializationError)
           else
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: fs
+              stream: fs!
                   .collection('rehearsals')
-                  .orderBy('scheduledAt')
+                  .where('endTime', isGreaterThan: Timestamp.now())
+                  .orderBy('endTime')
                   .limit(5)
                   .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32.0),
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  ),
-                );
-              }
-
-              // Handle error or missing index gracefully
-              if (snapshot.hasError || !snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return _buildEmptyState(context, theme);
-              }
-
-              final docs = snapshot.data!.docs;
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: docs.length,
-                separatorBuilder: (context, index) => const Divider(height: 16),
-                itemBuilder: (context, index) {
-                  final data = docs[index].data();
-                  final title = data['title']?.toString() ?? 'Rehearsal Session';
-                  final venue = data['venue']?.toString() ?? 'TBD';
-
-                  String formattedDate = 'Date & time TBD';
-                  final scheduledAt = data['scheduledAt'];
-                  if (scheduledAt is Timestamp) {
-                    final dt = scheduledAt.toDate();
-                    formattedDate = '${dt.day}/${dt.month}/${dt.year} at ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                  } else if (scheduledAt is String) {
-                    formattedDate = scheduledAt;
-                  }
-
-                  return _buildRehearsalTile(
-                    context: context,
-                    theme: theme,
-                    title: title,
-                    dateTime: formattedDate,
-                    venue: venue,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32.0),
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
                   );
-                },
-              );
-            },
-          ),
+                }
+
+                if (snapshot.hasError) {
+                  return _buildErrorState(theme, snapshot.error!);
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _buildEmptyState(context, theme);
+                }
+
+                final docs = snapshot.data!.docs;
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: docs.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 16),
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data();
+                    final title =
+                        data['title']?.toString() ?? 'Rehearsal Session';
+                    final venueName = data['venueName']?.toString().trim();
+                    final venueLegacy = data['venue']?.toString().trim();
+                    final venueId = data['venueId']?.toString().trim();
+                    final venue = (venueName != null && venueName.isNotEmpty)
+                        ? venueName
+                        : ((venueLegacy != null && venueLegacy.isNotEmpty)
+                            ? venueLegacy
+                            : ((venueId != null && venueId.isNotEmpty)
+                                ? venueId
+                                : 'TBD'));
+
+                    String formattedDate = 'Date & time TBD';
+                    final startTime = data['startTime'] ?? data['scheduledAt'];
+                    if (startTime is Timestamp) {
+                      final dt = startTime.toDate();
+                      formattedDate =
+                          '${dt.day}/${dt.month}/${dt.year} at ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                    } else if (startTime is String) {
+                      formattedDate = startTime;
+                    }
+
+                    return _buildRehearsalTile(
+                      context: context,
+                      theme: theme,
+                      title: title,
+                      dateTime: formattedDate,
+                      venue: venue,
+                    );
+                  },
+                );
+              },
+            ),
         ],
       ),
     );
@@ -159,7 +171,9 @@ class UpcomingRehearsalsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.25,
+        ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -201,6 +215,28 @@ class UpcomingRehearsalsCard extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(ThemeData theme, Object error) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Unable to load rehearsals: $error'),
+          if (onViewAllPressed != null)
+            TextButton(
+              onPressed: onViewAllPressed,
+              child: const Text('Open rehearsal schedule'),
+            ),
         ],
       ),
     );

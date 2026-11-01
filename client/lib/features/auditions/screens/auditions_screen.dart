@@ -1,3 +1,5 @@
+import 'package:client/services/auth_service.dart';
+import 'package:client/services/user_service.dart';
 import 'package:flutter/material.dart';
 
 import '../../productions/services/production_service.dart';
@@ -12,6 +14,9 @@ class AuditionsScreen extends StatefulWidget {
   final ProductionService? productionService;
   final bool showAppBar;
   final String? initialProductionFilter;
+  final AuthService? authService;
+  final UserService? userService;
+  final bool? isDirector;
 
   const AuditionsScreen({
     super.key,
@@ -19,6 +24,9 @@ class AuditionsScreen extends StatefulWidget {
     this.productionService,
     this.showAppBar = true,
     this.initialProductionFilter,
+    this.authService,
+    this.userService,
+    this.isDirector,
   });
 
   @override
@@ -28,16 +36,45 @@ class AuditionsScreen extends StatefulWidget {
 class _AuditionsScreenState extends State<AuditionsScreen> {
   late AuditionService _service;
   late Stream<List<Audition>> _auditionsStream;
+  late final AuthService _authService;
+  late final UserService _userService;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   String? _selectedProductionFilter;
+  String _userRole = 'Unverified';
+
+  bool get _isDirector =>
+      widget.isDirector ??
+      (_userRole == 'Director' ||
+          (widget.authService == null &&
+              widget.userService == null &&
+              widget.isDirector == null));
 
   @override
   void initState() {
     super.initState();
     _service = widget.auditionService ?? AuditionService();
+    _authService = widget.authService ?? AuthService();
+    _userService = widget.userService ?? UserService();
     _selectedProductionFilter = widget.initialProductionFilter;
     _auditionsStream = _service.streamAuditions();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    if (widget.isDirector != null) return;
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final profile = await _userService.getUserProfile(user.uid);
+        final role = profile?['role']?.toString().trim();
+        if (role != null && mounted) {
+          setState(() {
+            _userRole = role;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -89,6 +126,7 @@ class _AuditionsScreenState extends State<AuditionsScreen> {
           audition: audition,
           auditionService: _service,
           productionService: widget.productionService,
+          isDirector: _isDirector,
         ),
       ),
     );
@@ -222,13 +260,15 @@ class _AuditionsScreenState extends State<AuditionsScreen> {
               ),
             )
           : null,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToAddAudition,
-        backgroundColor: const Color(0xFF8B1E3F),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Schedule Audition'),
-      ),
+      floatingActionButton: _isDirector
+          ? FloatingActionButton.extended(
+              onPressed: _navigateToAddAudition,
+              backgroundColor: const Color(0xFF8B1E3F),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Schedule Audition'),
+            )
+          : null,
       body: StreamBuilder<List<Audition>>(
         stream: _auditionsStream,
         builder: (context, snapshot) {
@@ -463,7 +503,7 @@ class _AuditionsScreenState extends State<AuditionsScreen> {
                 icon: const Icon(Icons.filter_alt_off),
                 label: const Text('Clear Filters'),
               )
-            else
+            else if (_isDirector)
               FilledButton.icon(
                 onPressed: _navigateToAddAudition,
                 icon: const Icon(Icons.add),

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/cast_assignment_model.dart';
 
 class CastValidationException implements Exception {
@@ -24,17 +25,9 @@ class EligibleUser {
   final String name;
   final String email;
 
-  const EligibleUser({
-    required this.uid,
-    required this.name,
-    this.email = '',
-  });
+  const EligibleUser({required this.uid, required this.name, this.email = ''});
 
-  Map<String, dynamic> toMap() => {
-        'uid': uid,
-        'name': name,
-        'email': email,
-      };
+  Map<String, dynamic> toMap() => {'uid': uid, 'name': name, 'email': email};
 
   factory EligibleUser.fromMap(Map<String, dynamic> map, String id) {
     return EligibleUser(
@@ -48,8 +41,7 @@ class EligibleUser {
 class CastService {
   final FirebaseFirestore? _customFirestore;
 
-  CastService({FirebaseFirestore? firestore})
-      : _customFirestore = firestore;
+  CastService({FirebaseFirestore? firestore}) : _customFirestore = firestore;
 
   FirebaseFirestore get firestore =>
       _customFirestore ?? FirebaseFirestore.instance;
@@ -89,8 +81,9 @@ class CastService {
       if (excludeAssignmentId != null && doc.id == excludeAssignmentId) {
         continue;
       }
-      final existingRole =
-          (doc.data()['characterRole'] as String? ?? '').trim().toLowerCase();
+      final existingRole = (doc.data()['characterRole'] as String? ?? '')
+          .trim()
+          .toLowerCase();
       if (existingRole == roleNorm) {
         return CastAssignment.fromMap(doc.data(), doc.id);
       }
@@ -110,21 +103,32 @@ class CastService {
       );
     }
 
-    final docRef = await firestore
-        .collection('cast_assignments')
-        .add(assignment.toMap());
-
-    // Also register user into eligible cast_members directory for discovery
-    try {
-      await firestore.collection('cast_members').doc(assignment.userId).set({
-        'uid': assignment.userId,
-        'name': assignment.actorName,
-        'email': assignment.actorEmail,
+    final assignmentRef = firestore.collection('cast_assignments').doc();
+    final directoryRef = firestore
+        .collection('cast_members')
+        .doc(assignment.userId.trim());
+    final notificationRef = firestore.collection('notifications').doc();
+    final batch = firestore.batch()
+      ..set(assignmentRef, assignment.toMap())
+      ..set(directoryRef, {
+        'uid': assignment.userId.trim(),
+        'name': assignment.actorName.trim(),
+        'email': assignment.actorEmail.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {}
+      }, SetOptions(merge: true))
+      ..set(notificationRef, {
+        'recipientUid': assignment.userId.trim(),
+        'title': 'New role assignment: ${assignment.characterRole.trim()}',
+        'message':
+            'You have been assigned to ${assignment.characterRole.trim()}.',
+        'type': 'role_assignment',
+        'relatedId': assignmentRef.id,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    await batch.commit();
 
-    return assignment.copyWith(id: docRef.id);
+    return assignment.copyWith(id: assignmentRef.id);
   }
 
   /// Updates an existing role assignment.
@@ -145,10 +149,23 @@ class CastService {
       );
     }
 
-    await firestore
-        .collection('cast_assignments')
-        .doc(assignment.id.trim())
-        .update(assignment.toMap());
+    final notificationRef = firestore.collection('notifications').doc();
+    final batch = firestore.batch()
+      ..update(
+        firestore.collection('cast_assignments').doc(assignment.id.trim()),
+        assignment.toMap(),
+      )
+      ..set(notificationRef, {
+        'recipientUid': assignment.userId.trim(),
+        'title': 'Role assignment updated: ${assignment.characterRole.trim()}',
+        'message':
+            'Your assignment to ${assignment.characterRole.trim()} was updated.',
+        'type': 'role_assignment',
+        'relatedId': assignment.id.trim(),
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    await batch.commit();
   }
 
   /// Removes a role assignment (e.g. unassigning or vacating the role).
@@ -164,70 +181,64 @@ class CastService {
 
   /// Streams cast assignments, optionally filtered by productionId.
   Stream<List<CastAssignment>> streamCastAssignments({String? productionId}) {
-    try {
-      Query<Map<String, dynamic>> query =
-          firestore.collection('cast_assignments');
+    Query<Map<String, dynamic>> query = firestore.collection(
+      'cast_assignments',
+    );
 
-      if (productionId != null && productionId.trim().isNotEmpty) {
-        query = query.where('productionId', isEqualTo: productionId.trim());
-      }
-
-      return query.snapshots().map((snapshot) => snapshot.docs
-          .map((doc) => CastAssignment.fromMap(doc.data(), doc.id))
-          .toList());
-    } catch (_) {
-      return Stream.value([]);
+    if (productionId != null && productionId.trim().isNotEmpty) {
+      query = query.where('productionId', isEqualTo: productionId.trim());
     }
+
+    return query.snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => CastAssignment.fromMap(doc.data(), doc.id))
+          .toList(),
+    );
   }
 
   /// Gets cast assignments as a one-shot Future.
-  Future<List<CastAssignment>> getCastAssignments({String? productionId}) async {
-    try {
-      Query<Map<String, dynamic>> query =
-          firestore.collection('cast_assignments');
+  Future<List<CastAssignment>> getCastAssignments({
+    String? productionId,
+  }) async {
+    Query<Map<String, dynamic>> query = firestore.collection(
+      'cast_assignments',
+    );
 
-      if (productionId != null && productionId.trim().isNotEmpty) {
-        query = query.where('productionId', isEqualTo: productionId.trim());
-      }
-
-      final snapshot = await query.get();
-      return snapshot.docs
-          .map((doc) => CastAssignment.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (_) {
-      return [];
+    if (productionId != null && productionId.trim().isNotEmpty) {
+      query = query.where('productionId', isEqualTo: productionId.trim());
     }
+
+    final snapshot = await query.get();
+    return snapshot.docs
+        .map((doc) => CastAssignment.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   /// Streams known eligible cast members.
   Stream<List<EligibleUser>> streamEligibleUsers() {
-    try {
-      return firestore.collection('cast_members').snapshots().map((snapshot) =>
-          snapshot.docs
+    return firestore
+        .collection('cast_members')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
               .map((doc) => EligibleUser.fromMap(doc.data(), doc.id))
-              .toList());
-    } catch (_) {
-      return Stream.value([]);
-    }
+              .toList(),
+        );
   }
 
   /// Fetches known eligible cast members.
   Future<List<EligibleUser>> getEligibleUsers() async {
-    try {
-      final snapshot = await firestore.collection('cast_members').get();
-      return snapshot.docs
-          .map((doc) => EligibleUser.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (_) {
-      return [];
-    }
+    final snapshot = await firestore.collection('cast_members').get();
+    return snapshot.docs
+        .map((doc) => EligibleUser.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   /// Saves or refreshes an eligible user entry.
   Future<void> registerEligibleUser(EligibleUser user) async {
-    await firestore.collection('cast_members').doc(user.uid).set(
-          user.toMap(),
-          SetOptions(merge: true),
-        );
+    await firestore
+        .collection('cast_members')
+        .doc(user.uid)
+        .set(user.toMap(), SetOptions(merge: true));
   }
 }

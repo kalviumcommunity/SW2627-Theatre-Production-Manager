@@ -8,6 +8,7 @@ import 'package:client/features/rehearsals/screens/rehearsal_details_screen.dart
 import 'package:client/features/rehearsals/services/rehearsal_service.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
+
 import '../models/schedule_event_model.dart';
 import '../services/schedule_service.dart';
 import '../widgets/schedule_event_card.dart';
@@ -44,11 +45,12 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  String _userRole = 'Cast Member';
+  String _userRole = '';
   String? _userId;
 
   DateTime? _selectedDate;
-  String _activeFilter = 'All'; // 'All', 'Upcoming', 'Today', 'Rehearsals', 'Auditions'
+  String _activeFilter =
+      'All'; // 'All', 'Upcoming', 'Today', 'Rehearsals', 'Auditions'
 
   List<ScheduleEvent> _events = [];
   bool _isLoading = true;
@@ -59,7 +61,8 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
     super.initState();
     _authService = widget.authService ?? AuthService();
     _userService = widget.userService ?? UserService();
-    _scheduleService = widget.scheduleService ??
+    _scheduleService =
+        widget.scheduleService ??
         ScheduleService(
           productionService: widget.productionService,
           rehearsalService: widget.rehearsalService,
@@ -78,14 +81,27 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
   Future<void> _initUserData() async {
     try {
       final user = _authService.currentUser;
-      if (user != null) {
-        _userId = user.uid;
-        final profile = await _userService.getUserProfile(user.uid);
-        if (profile != null && profile['role'] != null) {
-          _userRole = profile['role'].toString();
-        }
+      if (user == null) {
+        throw StateError('Sign in to load your schedule.');
       }
-    } catch (_) {}
+      _userId = user.uid;
+      final profile = await _userService.getUserProfile(user.uid);
+      final role = profile?['role']?.toString().trim();
+      if (role == null || role.isEmpty) {
+        throw StateError(
+          'Your user profile is missing a role. Contact a director.',
+        );
+      }
+      _userRole = role;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = error.toString();
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     await _loadEvents();
   }
@@ -130,9 +146,8 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: const Color(0xFF8B1E3F),
-                ),
+            colorScheme: Theme.of(context).colorScheme
+                .copyWith(primary: const Color(0xFF8B1E3F)),
           ),
           child: child!,
         );
@@ -156,25 +171,29 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
 
   void _onEventTap(ScheduleEvent event) {
     if (event.isRehearsal && event.originalObject is Rehearsal) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (ctx) => RehearsalDetailsScreen(
-            rehearsal: event.originalObject as Rehearsal,
-            rehearsalService: widget.rehearsalService,
-            productionService: widget.productionService,
-          ),
-        ),
-      ).then((_) => _loadEvents());
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (ctx) => RehearsalDetailsScreen(
+                rehearsal: event.originalObject as Rehearsal,
+                rehearsalService: widget.rehearsalService,
+                productionService: widget.productionService,
+              ),
+            ),
+          )
+          .then((_) => _loadEvents());
     } else if (event.isAudition && event.originalObject is Audition) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (ctx) => AuditionDetailsScreen(
-            audition: event.originalObject as Audition,
-            auditionService: widget.auditionService,
-            productionService: widget.productionService,
-          ),
-        ),
-      ).then((_) => _loadEvents());
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (ctx) => AuditionDetailsScreen(
+                audition: event.originalObject as Audition,
+                auditionService: widget.auditionService,
+                productionService: widget.productionService,
+              ),
+            ),
+          )
+          .then((_) => _loadEvents());
     }
   }
 
@@ -284,39 +303,41 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: [
-                    'All',
-                    'Upcoming',
-                    'Today',
-                    'Rehearsals',
-                    'Auditions',
-                  ].map((filter) {
-                    final isSel = _activeFilter == filter;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: FilterChip(
-                        label: Text(filter),
-                        selected: isSel,
-                        selectedColor:
-                            const Color(0xFF8B1E3F).withValues(alpha: 0.15),
-                        checkmarkColor: const Color(0xFF8B1E3F),
-                        labelStyle: TextStyle(
-                          color: isSel
-                              ? const Color(0xFF8B1E3F)
-                              : theme.colorScheme.onSurface,
-                          fontWeight:
-                              isSel ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _activeFilter = filter;
-                            });
-                          }
-                        },
-                      ),
-                    );
-                  }).toList(),
+                  children:
+                      [
+                        'All',
+                        'Upcoming',
+                        'Today',
+                        'Rehearsals',
+                        'Auditions',
+                      ].map((filter) {
+                        final isSel = _activeFilter == filter;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FilterChip(
+                            label: Text(filter),
+                            selected: isSel,
+                            selectedColor: const Color(0xFF8B1E3F)
+                                .withValues(alpha: 0.15),
+                            checkmarkColor: const Color(0xFF8B1E3F),
+                            labelStyle: TextStyle(
+                              color: isSel
+                                  ? const Color(0xFF8B1E3F)
+                                  : theme.colorScheme.onSurface,
+                              fontWeight: isSel
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            onSelected: (selected) {
+                              if (selected) {
+                                setState(() {
+                                  _activeFilter = filter;
+                                });
+                              }
+                            },
+                          ),
+                        );
+                      }).toList(),
                 ),
               ),
             ],
@@ -329,86 +350,88 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline,
-                              size: 48, color: theme.colorScheme.error),
-                          const SizedBox(height: 12),
-                          Text('Error loading schedule: $_errorMessage'),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: _loadEvents,
-                            child: const Text('Retry'),
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: theme.colorScheme.error,
                       ),
-                    )
-                  : _filteredEvents.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.calendar_today_outlined,
-                                size: 64,
-                                color: theme.colorScheme.outline,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _searchQuery.isNotEmpty || _selectedDate != null
-                                    ? 'No schedule events found for this filter.'
-                                    : 'No events scheduled yet.',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadEvents,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final isWide = constraints.maxWidth >= 720;
-                              if (isWide) {
-                                return GridView.builder(
-                                  padding: const EdgeInsets.all(16),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: 450,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    mainAxisExtent: 165,
-                                  ),
-                                  itemCount: _filteredEvents.length,
-                                  itemBuilder: (context, index) {
-                                    final event = _filteredEvents[index];
-                                    return ScheduleEventCard(
-                                      event: event,
-                                      onTap: () => _onEventTap(event),
-                                    );
-                                  },
-                                );
-                              }
-
-                              return ListView.separated(
-                                padding: const EdgeInsets.all(16),
-                                itemCount: _filteredEvents.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 12),
-                                itemBuilder: (context, index) {
-                                  final event = _filteredEvents[index];
-                                  return ScheduleEventCard(
-                                    event: event,
-                                    onTap: () => _onEventTap(event),
-                                  );
-                                },
-                              );
-                            },
-                          ),
+                      const SizedBox(height: 12),
+                      Text('Error loading schedule: $_errorMessage'),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _initUserData,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : _filteredEvents.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 64,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _searchQuery.isNotEmpty || _selectedDate != null
+                            ? 'No schedule events found for this filter.'
+                            : 'No events scheduled yet.',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _initUserData,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 720;
+                      if (isWide) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 450,
+                                crossAxisSpacing: 16,
+                                mainAxisSpacing: 16,
+                                mainAxisExtent: 165,
+                              ),
+                          itemCount: _filteredEvents.length,
+                          itemBuilder: (context, index) {
+                            final event = _filteredEvents[index];
+                            return ScheduleEventCard(
+                              event: event,
+                              onTap: () => _onEventTap(event),
+                            );
+                          },
+                        );
+                      }
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _filteredEvents.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final event = _filteredEvents[index];
+                          return ScheduleEventCard(
+                            event: event,
+                            onTap: () => _onEventTap(event),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
         ),
       ],
     );
@@ -416,13 +439,15 @@ class _MasterScheduleScreenState extends State<MasterScheduleScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Master Schedule',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Master Schedule',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
-              onPressed: _loadEvents,
+              onPressed: _initUserData,
             ),
           ],
         ),

@@ -55,33 +55,29 @@ class NotificationService {
   /// Streams notifications for a specific user (and global 'all' announcements).
   Stream<List<AppNotification>> streamNotifications({required String userId}) {
     final uid = userId.trim();
-    if (uid.isEmpty || uid == 'guest') return Stream.value([]);
-    try {
-      return firestore
-          .collection('notifications')
-          .where('recipientUid', whereIn: [uid, 'all'])
-          .snapshots()
-          .map((snapshot) {
-            final list = snapshot.docs
-                .map(
-                  (doc) =>
-                      AppNotification.fromMap(doc.data(), doc.id, userId: uid),
-                )
-                .toList();
-
-            list.sort((a, b) {
-              final aTime =
-                  a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-              final bTime =
-                  b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-              return bTime.compareTo(aTime); // Latest first
-            });
-
-            return list;
-          });
-    } catch (_) {
-      return Stream.value([]);
+    if (uid.isEmpty || uid == 'guest') {
+      return Stream.error(StateError('Sign in to load notifications.'));
     }
+    return firestore
+        .collection('notifications')
+        .where('recipientUid', whereIn: [uid, 'all'])
+        .snapshots()
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map(
+                (doc) =>
+                    AppNotification.fromMap(doc.data(), doc.id, userId: uid),
+              )
+              .toList();
+
+          list.sort((a, b) {
+            final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime); // Latest first
+          });
+
+          return list;
+        });
   }
 
   /// Creates a new notification document.

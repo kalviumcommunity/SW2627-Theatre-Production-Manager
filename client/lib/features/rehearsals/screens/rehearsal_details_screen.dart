@@ -11,12 +11,14 @@ class RehearsalDetailsScreen extends StatefulWidget {
   final Rehearsal rehearsal;
   final RehearsalService? rehearsalService;
   final ProductionService? productionService;
+  final bool isDirector;
 
   const RehearsalDetailsScreen({
     super.key,
     required this.rehearsal,
     this.rehearsalService,
     this.productionService,
+    this.isDirector = true,
   });
 
   @override

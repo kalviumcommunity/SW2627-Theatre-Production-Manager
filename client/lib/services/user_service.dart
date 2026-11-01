@@ -5,13 +5,7 @@ class UserService {
 
   UserService({this._firestore});
 
-  FirebaseFirestore? get firestore {
-    try {
-      return _firestore ?? FirebaseFirestore.instance;
-    } catch (_) {
-      return null;
-    }
-  }
+  FirebaseFirestore get firestore => _firestore ?? FirebaseFirestore.instance;
 
   /// Creates or updates a user profile document in Firestore at `users/{uid}`.
   Future<void> createUserProfile({
@@ -20,29 +14,33 @@ class UserService {
     required String email,
     required String role,
   }) async {
-    final fs = firestore;
-    if (fs == null) return;
-    await fs.collection('users').doc(uid).set({
+    final batch = firestore.batch();
+    batch.set(firestore.collection('users').doc(uid), {
       'name': name.trim(),
       'email': email.trim().toLowerCase(),
       'role': role.trim(),
       'createdAt': FieldValue.serverTimestamp(),
     });
+    if (role.trim() == 'Cast Member') {
+      batch.set(firestore.collection('cast_members').doc(uid), {
+        'uid': uid,
+        'name': name.trim(),
+        'email': email.trim().toLowerCase(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
   }
 
   /// Fetches a user profile document from `users/{uid}`.
   Future<Map<String, dynamic>?> getUserProfile(String uid) async {
-    final fs = firestore;
-    if (fs == null) return null;
-    final docSnapshot = await fs.collection('users').doc(uid).get();
+    final docSnapshot = await firestore.collection('users').doc(uid).get();
     return docSnapshot.data();
   }
 
   /// Streams a user profile document from `users/{uid}`.
   Stream<Map<String, dynamic>?> streamUserProfile(String uid) {
-    final fs = firestore;
-    if (fs == null) return const Stream.empty();
-    return fs
+    return firestore
         .collection('users')
         .doc(uid)
         .snapshots()

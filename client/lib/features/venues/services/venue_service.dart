@@ -79,10 +79,14 @@ class VenueService {
     if (venueId.trim().isEmpty) {
       throw ArgumentError('Venue ID cannot be empty for deletion.');
     }
-    await functions.httpsCallable('manageVenue').call({
-      'action': 'delete',
-      'venue': {'id': venueId.trim()},
-    });
+    try {
+      await functions.httpsCallable('manageVenue').call({
+        'action': 'delete',
+        'venue': {'id': venueId.trim()},
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw mapVenueFunctionsException(error);
+    }
   }
 
   Future<void> _mutateVenue(String action, Venue venue) async {
@@ -99,8 +103,58 @@ class VenueService {
         },
       });
     } on FirebaseFunctionsException catch (error) {
-      throw VenueValidationException(error.message ?? 'Venue update failed.');
+      throw mapVenueFunctionsException(error);
     }
+  }
+
+  static VenueValidationException mapVenueFunctionsException(
+    FirebaseFunctionsException error,
+  ) {
+    if (error.code == 'permission-denied') {
+      return const VenueValidationException(
+        'Permission denied: Only Directors can create or manage venues.',
+      );
+    }
+    if (error.code == 'unauthenticated') {
+      return const VenueValidationException(
+        'You must be signed in to manage venues.',
+      );
+    }
+    if (error.code == 'already-exists') {
+      return VenueValidationException(
+        error.message != null && error.message!.isNotEmpty
+            ? error.message!
+            : 'A venue with this name or historical alias already exists.',
+      );
+    }
+    if (error.code == 'failed-precondition') {
+      return VenueValidationException(
+        error.message != null && error.message!.isNotEmpty
+            ? error.message!
+            : 'Venue operation failed precondition check.',
+      );
+    }
+    if (error.code == 'invalid-argument') {
+      return VenueValidationException(
+        error.message != null && error.message!.isNotEmpty
+            ? error.message!
+            : 'Invalid venue data provided.',
+      );
+    }
+    if (error.code == 'internal' ||
+        error.code == 'unavailable' ||
+        (error.message != null &&
+            (error.message!.contains('internal [0]') ||
+                error.message!.contains('[0]')))) {
+      return const VenueValidationException(
+        'Backend venue service is currently unavailable. The Cloud Functions API may be disabled, not yet deployed, or unreachable. If testing locally, please run against the Firebase Emulator Suite.',
+      );
+    }
+    return VenueValidationException(
+      error.message != null && error.message!.isNotEmpty
+          ? error.message!
+          : 'Venue operation failed.',
+    );
   }
 
   Future<Venue?> getVenue(String venueId) async {
@@ -113,31 +167,23 @@ class VenueService {
   }
 
   Stream<List<Venue>> streamVenues() {
-    try {
-      return firestore
-          .collection('venues')
-          .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .where((doc) => doc.data()['deleted'] != true)
-                .map((doc) => Venue.fromMap(doc.data(), doc.id))
-                .toList(),
-          );
-    } catch (_) {
-      return Stream.value([]);
-    }
+    return firestore
+        .collection('venues')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .where((doc) => doc.data()['deleted'] != true)
+              .map((doc) => Venue.fromMap(doc.data(), doc.id))
+              .toList(),
+        );
   }
 
   Future<List<Venue>> getVenues() async {
-    try {
-      final snapshot = await firestore.collection('venues').get();
-      return snapshot.docs
-          .where((doc) => doc.data()['deleted'] != true)
-          .map((doc) => Venue.fromMap(doc.data(), doc.id))
-          .toList();
-    } catch (_) {
-      return [];
-    }
+    final snapshot = await firestore.collection('venues').get();
+    return snapshot.docs
+        .where((doc) => doc.data()['deleted'] != true)
+        .map((doc) => Venue.fromMap(doc.data(), doc.id))
+        .toList();
   }
 
   /// Checks for overlapping commitments (Rehearsals or Auditions) at the given venue.

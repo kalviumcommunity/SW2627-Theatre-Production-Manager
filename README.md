@@ -161,6 +161,112 @@ deleted and retains its document ID and aliases so historical bookings remain
 resolvable. Directors cannot edit a deleted venue or create another venue using
 one of its historical names.
 
+
+### User Roles and Permissions
+
+| Feature / Action | Director | Cast Member | Enforcement Mechanism |
+|---|---|---|---|
+| **View Dashboard** | Full stats & all upcoming commitments | Relevant productions & assigned rehearsals | UI role gating & Firestore queries |
+| **Productions** | Create, edit, delete, view all | Read-only access to assigned productions | Firestore Rules (`isDirector()`) & UI gating |
+| **Auditions** | Schedule, edit, cancel, assign venues | Read-only view of audition notices & call times | Firestore Rules (writes blocked) + `saveVenueBooking` callable |
+| **Rehearsals** | Schedule, edit, cancel, assign venues | Read-only view of rehearsals for their productions | Firestore Rules (writes blocked) + `saveVenueBooking` callable |
+| **Venues** | Create, rename, edit capacity, soft-delete | View venues & check availability | Firestore Rules (writes blocked) + `manageVenue` callable |
+| **Cast Management** | View roster, assign roles & understudies | View cast assignments | Firestore Rules (`isDirector()`) & UI gating |
+| **Master Schedule** | Full schedule across all productions & venues | Filtered schedule of assigned rehearsals/auditions | UI role filtering & client queries |
+| **Notifications** | View/manage notifications | View personal notifications, mark as read | Firestore Rules (`isOwner(resource.data.userId)`) |
+
+### Database Collection Structure
+
+| Collection | Document ID Pattern | Key Fields | Read Access | Write Access |
+|---|---|---|---|---|
+| `users` | `users/{uid}` | `email`, `displayName`, `role` (`'Director'` or `'Cast Member'`), `createdAt` | Authenticated users | Owner (self) |
+| `productions` | `productions/{productionId}` | `title`, `description`, `directorId`, `startDate`, `endDate`, `status` | Authenticated users | Director only |
+| `auditions` | `auditions/{auditionId}` | `productionId`, `venueId`, `venueName`, `startDateTime`, `endDateTime`, `roles`, `status` | Authenticated users | Callable (`saveVenueBooking`) |
+| `rehearsals` | `rehearsals/{rehearsalId}` | `productionId`, `venueId`, `venueName`, `startDateTime`, `endDateTime`, `requiredRoles`, `notes` | Authenticated users | Callable (`saveVenueBooking`) |
+| `venues` | `venues/{venueId}` | `name`, `capacity`, `location`, `aliases`, `isDeleted`, `updatedAt` | Authenticated users | Callable (`manageVenue`) |
+| `cast_members` | `cast_members/{uid}` | `name`, `email`, `phoneNumber`, `bio`, `active` | Authenticated users | Director or self |
+| `cast_assignments` | `cast_assignments/{assignmentId}` | `productionId`, `actorId`, `actorName`, `characterRole`, `isUnderstudy` | Authenticated users | Director only |
+| `notifications` | `notifications/{notificationId}` | `userId`, `title`, `message`, `type`, `isRead`, `timestamp` | Document owner | Backend / Director / Owner read flag |
+
+### Firebase data paths
+
+| App area | Firestore source and write path |
+|---|---|
+| Productions | `productions/{productionId}`; Director-only client writes under `client/firestore.rules`. |
+| Auditions | `auditions/{auditionId}`; reads from Firestore and mutations through `saveVenueBooking`. New bookings persist `venueId` when the selected venue resolves in the directory. |
+| Rehearsals | `rehearsals/{rehearsalId}`; reads from Firestore and mutations through `saveVenueBooking`; new bookings persist the stable venue ID and display name. |
+| Venues | `venues/{venueId}`; reads from Firestore and create/rename/soft-delete through Director-authorized `manageVenue`. `aliases` retains prior names. |
+| Cast and roles | `cast_assignments/{assignmentId}` and `cast_members/{uid}`; Director writes are protected by rules. Profiles live in `users/{uid}`. |
+| Master schedule | Derived from audition, rehearsal, production, and cast-assignment data; there is no separate schedule collection. |
+| In-app notifications | `notifications/{notificationId}`; booking and assignment changes create notifications, and clients read/update read state under notification rules. |
+| Dashboard | Counts are loaded from productions, rehearsals, auditions, and venues; upcoming rehearsals come from `rehearsals`. |
+
+Firebase connectivity and collection contents have not been verified against the
+configured live project in this environment. The Firebase CLI session used for
+the read-only project check had expired credentials. Reauthenticate with
+`firebase login --reauth`, select the intended project explicitly, and verify
+the project ID and user access before checking live data. This repository does
+not auto-seed any Firebase project. For safe demos, run the Firebase emulators
+with a `demo-*` project ID and invoke the explicit repeatable seed command
+below; never point a demo seed at a production project. Seeded bookings use the
+booking callable, and ordinary Firestore seed writes use emulator-issued
+authenticated tokens and the configured security rules.
+
+To seed local demo records, use throwaway passwords and start all three
+emulators. In PowerShell, from the repository root:
+
+```powershell
+$env:DEMO_DIRECTOR_PASSWORD = 'local-only-demo-password-1'
+$env:DEMO_CAST_PASSWORD = 'local-only-demo-password-2'
+firebase emulators:exec --project demo-theatre-data --only auth,firestore,functions "npm --prefix functions run seed:demo"
+```
+
+The script refuses a non-`demo-*` project or any non-loopback emulator host.
+It uses stable `[DEMO]` record IDs and create-only writes, so reruns preserve
+existing data. It creates the Director profile with the Admin SDK only inside
+the emulators because Director roles are provisioned administratively; no
+service-account key is embedded or needed. Audition/rehearsal bookings go
+through `saveVenueBooking`, and venue creation goes through `manageVenue`.
+These demo accounts and passwords exist only in the emulator; do not reuse
+them for a Firebase project or real account.
+
+The booking transaction, callable integration, and rules tests require local
+Firebase emulators. A passing Functions unit suite alone does not verify
+transaction behavior, concurrent booking safety, callable authorization, or
+Firestore rules. Flutter widget tests use fakes for service behavior and do not
+verify live Firebase connectivity.
+
+### Running the Flutter Client with Local Emulators
+
+To run the Flutter app connected to local Firebase emulators (Auth on port 9099, Firestore on port 8085, and Cloud Functions on port 5001):
+
+1. Start Firebase Emulators:
+   ```sh
+   firebase emulators:start --only auth,firestore,functions
+   ```
+
+2. Run the Flutter web or desktop/mobile application with the emulator flag enabled:
+   ```sh
+   cd client
+   flutter run -d chrome --dart-define=USE_FIREBASE_EMULATOR=true
+   ```
+   *(For Android emulators, set `--dart-define=FIREBASE_EMULATOR_HOST=10.0.2.2`)*
+
+### Deployment Prerequisites & Known Limitations
+
+> [!WARNING]
+> **Cloud Functions API Requirement (Known Issue Resolution)**:
+> In the live Google Cloud / Firebase project `theatre-production-manager`, the Cloud Functions API previously returned `403 SERVICE_DISABLED`. Callable functions (`manageVenue` and `saveVenueBooking`) will fail with `internal [0]` in production if invoked while this API remains disabled.
+>
+> Before live deployment, the project administrator must:
+> 1. Upgrade the Firebase project to the **Blaze (pay-as-you-go)** plan.
+> 2. Enable the **Cloud Functions v2 API** (`cloudfunctions.googleapis.com`), **Cloud Build API** (`cloudbuild.googleapis.com`), and **Artifact Registry API** (`artifactregistry.googleapis.com`) in the Google Cloud Console.
+> 3. Verify that the App Engine / Cloud Functions service account has `roles/datastore.user` and `roles/cloudfunctions.invoker`.
+> 4. Deploy rules and callables atomically:
+>    ```sh
+>    firebase deploy --only firestore:rules,functions
+>    ```
+
 ## Development Workflow
 
 The project follows a branch-based Git workflow:

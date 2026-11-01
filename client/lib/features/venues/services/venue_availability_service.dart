@@ -47,12 +47,16 @@ class VenueAvailabilityService implements VenueBookingGateway {
     required String auditionId,
     String? reason,
   }) async {
-    await functions.httpsCallable('saveVenueBooking').call({
-      'eventType': 'audition',
-      'action': 'cancel',
-      'id': auditionId,
-      'reason': reason,
-    });
+    try {
+      await functions.httpsCallable('saveVenueBooking').call({
+        'eventType': 'audition',
+        'action': 'cancel',
+        'id': auditionId,
+        'reason': reason,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw mapVenueBookingFunctionsException(error);
+    }
   }
 
   @override
@@ -60,10 +64,14 @@ class VenueAvailabilityService implements VenueBookingGateway {
     required String eventType,
     required String id,
   }) async {
-    await functions.httpsCallable('saveVenueBooking').call({
-      'eventType': eventType,
-      'action': 'delete',
-      'id': id,
-    });
+    try {
+      await functions.httpsCallable('saveVenueBooking').call({
+        'eventType': eventType,
+        'action': 'delete',
+        'id': id,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw mapVenueBookingFunctionsException(error);
+    }
   }
 }

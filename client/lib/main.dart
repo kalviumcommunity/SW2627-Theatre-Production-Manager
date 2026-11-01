@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +13,19 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  const useEmulator =
+      bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
+  if (useEmulator) {
+    const emulatorHost = String.fromEnvironment(
+      'FIREBASE_EMULATOR_HOST',
+      defaultValue: '127.0.0.1',
+    );
+    FirebaseAuth.instance.useAuthEmulator(emulatorHost, 9099);
+    FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, 8085);
+    FirebaseFunctions.instanceFor(region: 'us-central1')
+        .useFunctionsEmulator(emulatorHost, 5001);
+  }
 
   runApp(const TheatreProductionManager());
 }

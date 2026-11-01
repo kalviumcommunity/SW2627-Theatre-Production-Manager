@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:client/services/auth_service.dart';
 import 'package:client/services/user_service.dart';
+
 import '../models/venue_model.dart';
 import '../services/venue_service.dart';
 import '../widgets/venue_card.dart';
@@ -32,7 +33,9 @@ class _VenuesScreenState extends State<VenuesScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String _userRole = 'Cast Member';
+  String _userRole = 'Unverified';
+  String? _roleError;
+  late Stream<List<Venue>> _venuesStream;
 
   @override
   void initState() {
@@ -40,6 +43,7 @@ class _VenuesScreenState extends State<VenuesScreen> {
     _venueService = widget.venueService ?? VenueService();
     _authService = widget.authService ?? AuthService();
     _userService = widget.userService ?? UserService();
+    _venuesStream = _venueService.streamVenues();
     _loadUserRole();
   }
 
@@ -49,18 +53,33 @@ class _VenuesScreenState extends State<VenuesScreen> {
     super.dispose();
   }
 
-  void _loadUserRole() async {
+  Future<void> _loadUserRole() async {
     try {
       final user = _authService.currentUser;
-      if (user != null) {
-        final profile = await _userService.getUserProfile(user.uid);
-        if (mounted && profile != null && profile['role'] != null) {
-          setState(() {
-            _userRole = profile['role'].toString();
-          });
-        }
+      if (user == null) throw StateError('Sign in to load venue permissions.');
+      final profile = await _userService.getUserProfile(user.uid);
+      final role = profile?['role']?.toString().trim();
+      if (role == null || role.isEmpty) {
+        throw StateError('Your role is missing from your user profile.');
       }
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _userRole = role;
+          _roleError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _userRole = 'Unverified';
+          _roleError = error.toString();
+        });
+      }
+    }
+  }
+
+  void _retryVenues() {
+    setState(() => _venuesStream = _venueService.streamVenues());
   }
 
   bool get _isDirector => _userRole == 'Director';
@@ -68,9 +87,7 @@ class _VenuesScreenState extends State<VenuesScreen> {
   void _navigateToAddVenue() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (ctx) => AddEditVenueScreen(
-          venueService: _venueService,
-        ),
+        builder: (ctx) => AddEditVenueScreen(venueService: _venueService),
       ),
     );
   }
@@ -92,7 +109,7 @@ class _VenuesScreenState extends State<VenuesScreen> {
     final theme = Theme.of(context);
 
     final content = StreamBuilder<List<Venue>>(
-      stream: _venueService.streamVenues(),
+      stream: _venuesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -103,9 +120,19 @@ class _VenuesScreenState extends State<VenuesScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: theme.colorScheme.error,
+                ),
                 const SizedBox(height: 12),
                 Text('Error loading venues: ${snapshot.error}'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _retryVenues,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
               ],
             ),
           );
@@ -122,6 +149,20 @@ class _VenuesScreenState extends State<VenuesScreen> {
 
         return Column(
           children: [
+            if (_roleError != null)
+              MaterialBanner(
+                content: Text('Unable to load venue permissions: $_roleError'),
+                leading: Icon(
+                  Icons.error_outline,
+                  color: theme.colorScheme.error,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: _loadUserRole,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             // Header and search bar
             Container(
               padding: const EdgeInsets.all(16),
@@ -133,7 +174,8 @@ class _VenuesScreenState extends State<VenuesScreen> {
                       key: const Key('venue_search_input'),
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: 'Search venues by name, location, or facility...',
+                        hintText:
+                            'Search venues by name, location, or facility...',
                         prefixIcon: const Icon(Icons.search),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
@@ -229,11 +271,11 @@ class _VenuesScreenState extends State<VenuesScreen> {
                             padding: const EdgeInsets.all(16),
                             gridDelegate:
                                 const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 450,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                              mainAxisExtent: 180,
-                            ),
+                                  maxCrossAxisExtent: 450,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  mainAxisExtent: 180,
+                                ),
                             itemCount: filteredVenues.length,
                             itemBuilder: (context, index) {
                               final v = filteredVenues[index];
@@ -269,7 +311,10 @@ class _VenuesScreenState extends State<VenuesScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Venues', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Venues',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
         body: content,
       );

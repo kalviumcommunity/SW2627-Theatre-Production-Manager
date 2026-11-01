@@ -224,23 +224,19 @@ class AuditionService {
 
   /// Streams auditions, optionally filtered by production ID.
   Stream<List<Audition>> streamAuditions({String? productionId}) {
-    try {
-      Query query = firestore.collection('auditions');
+    Query query = firestore.collection('auditions');
 
-      if (productionId != null && productionId.trim().isNotEmpty) {
-        query = query.where('productionId', isEqualTo: productionId.trim());
-      }
-
-      return query.snapshots().map((snapshot) {
-        final list = snapshot.docs
-            .map((doc) => Audition.fromFirestore(doc))
-            .toList();
-        list.sort((a, b) => a.startTime.compareTo(b.startTime));
-        return list;
-      });
-    } catch (_) {
-      return Stream.value([]);
+    if (productionId != null && productionId.trim().isNotEmpty) {
+      query = query.where('productionId', isEqualTo: productionId.trim());
     }
+
+    return query.snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => Audition.fromFirestore(doc))
+          .toList();
+      list.sort((a, b) => a.startTime.compareTo(b.startTime));
+      return list;
+    });
   }
 
   /// Fetches a list of auditions once, optionally filtered by production ID.

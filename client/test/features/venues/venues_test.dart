@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:client/features/venues/models/venue_model.dart';
@@ -291,6 +292,43 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeService.lastDeletedVenueId, 'v-del');
+    });
+  });
+
+  group('VenueService Callable Exception Mapping Tests', () {
+    test('maps internal and [0] errors to friendly service unavailable message', () {
+      final exc = VenueService.mapVenueFunctionsException(
+        FirebaseFunctionsException(code: 'internal', message: 'internal [0]'),
+      );
+      expect(exc.message, contains('Backend venue service is currently unavailable'));
+    });
+
+    test('maps permission-denied to director restriction message', () {
+      final exc = VenueService.mapVenueFunctionsException(
+        FirebaseFunctionsException(code: 'permission-denied', message: 'denied'),
+      );
+      expect(exc.message, contains('Only Directors can create or manage venues'));
+    });
+
+    test('maps unauthenticated to sign in message', () {
+      final exc = VenueService.mapVenueFunctionsException(
+        FirebaseFunctionsException(code: 'unauthenticated', message: 'unauth'),
+      );
+      expect(exc.message, contains('You must be signed in to manage venues'));
+    });
+
+    test('maps already-exists and preserves server message', () {
+      final exc = VenueService.mapVenueFunctionsException(
+        FirebaseFunctionsException(code: 'already-exists', message: 'Name taken'),
+      );
+      expect(exc.message, 'Name taken');
+    });
+
+    test('maps failed-precondition and preserves server message', () {
+      final exc = VenueService.mapVenueFunctionsException(
+        FirebaseFunctionsException(code: 'failed-precondition', message: 'Active booking conflict'),
+      );
+      expect(exc.message, 'Active booking conflict');
     });
   });
 }

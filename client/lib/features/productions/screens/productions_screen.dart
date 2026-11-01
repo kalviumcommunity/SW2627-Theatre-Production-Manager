@@ -1,3 +1,5 @@
+import 'package:client/services/auth_service.dart';
+import 'package:client/services/user_service.dart';
 import 'package:flutter/material.dart';
 import '../models/production_model.dart';
 import '../services/production_service.dart';
@@ -8,11 +10,17 @@ import 'production_details_screen.dart';
 class ProductionsScreen extends StatefulWidget {
   final ProductionService? productionService;
   final bool showAppBar;
+  final AuthService? authService;
+  final UserService? userService;
+  final bool? isDirector;
 
   const ProductionsScreen({
     super.key,
     this.productionService,
     this.showAppBar = true,
+    this.authService,
+    this.userService,
+    this.isDirector,
   });
 
   @override
@@ -22,15 +30,44 @@ class ProductionsScreen extends StatefulWidget {
 class _ProductionsScreenState extends State<ProductionsScreen> {
   late ProductionService _service;
   late Stream<List<Production>> _productionsStream;
+  late final AuthService _authService;
+  late final UserService _userService;
   String _selectedStatusFilter = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  String _userRole = 'Unverified';
+
+  bool get _isDirector =>
+      widget.isDirector ??
+      (_userRole == 'Director' ||
+          (widget.authService == null &&
+              widget.userService == null &&
+              widget.isDirector == null));
 
   @override
   void initState() {
     super.initState();
     _service = widget.productionService ?? ProductionService();
+    _authService = widget.authService ?? AuthService();
+    _userService = widget.userService ?? UserService();
     _productionsStream = _service.streamProductions();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    if (widget.isDirector != null) return;
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final profile = await _userService.getUserProfile(user.uid);
+        final role = profile?['role']?.toString().trim();
+        if (role != null && mounted) {
+          setState(() {
+            _userRole = role;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -74,6 +111,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
         builder: (context) => ProductionDetailsScreen(
           production: production,
           productionService: _service,
+          isDirector: _isDirector,
         ),
       ),
     );
@@ -251,7 +289,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
                             return ProductionCard(
                               production: prod,
                               onTap: () => _navigateToDetails(prod),
-                              onDelete: () => _deleteProduction(prod),
+                              onDelete: _isDirector ? () => _deleteProduction(prod) : null,
                             );
                           },
                           childCount: filteredList.length,
@@ -269,13 +307,15 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     if (!widget.showAppBar) {
       return Scaffold(
         body: content,
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _navigateToAddProduction,
-          backgroundColor: const Color(0xFF8B1E3F),
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Production'),
-        ),
+        floatingActionButton: _isDirector
+            ? FloatingActionButton.extended(
+                onPressed: _navigateToAddProduction,
+                backgroundColor: const Color(0xFF8B1E3F),
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Production'),
+              )
+            : null,
       );
     }
 
@@ -286,31 +326,34 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: FilledButton.icon(
-              onPressed: _navigateToAddProduction,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Production'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8B1E3F),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          if (_isDirector)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: FilledButton.icon(
+                onPressed: _navigateToAddProduction,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Production'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF8B1E3F),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       body: content,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToAddProduction,
-        backgroundColor: const Color(0xFF8B1E3F),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Production'),
-      ),
+      floatingActionButton: _isDirector
+          ? FloatingActionButton.extended(
+              onPressed: _navigateToAddProduction,
+              backgroundColor: const Color(0xFF8B1E3F),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Add Production'),
+            )
+          : null,
     );
   }
 

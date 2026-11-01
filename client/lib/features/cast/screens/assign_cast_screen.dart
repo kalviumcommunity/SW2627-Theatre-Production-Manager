@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:client/features/productions/models/production_model.dart';
 import 'package:client/features/productions/services/production_service.dart';
+
 import '../models/cast_assignment_model.dart';
 import '../services/cast_service.dart';
 
@@ -41,6 +42,7 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
   String _selectedStatus = CastAssignmentStatus.assigned;
   bool _isSaving = false;
   String? _errorMessage;
+  String? _loadErrorMessage;
 
   List<Production> _productions = [];
   List<EligibleUser> _eligibleUsers = [];
@@ -77,6 +79,10 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
   }
 
   Future<void> _loadDependencies() async {
+    setState(() {
+      _isLoadingData = true;
+      _loadErrorMessage = null;
+    });
     try {
       final prods = await _productionService.getProductions();
       final users = await _castService.getEligibleUsers();
@@ -92,10 +98,11 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
           }
         });
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         setState(() {
           _isLoadingData = false;
+          _loadErrorMessage = error.toString();
         });
       }
     }
@@ -114,14 +121,16 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
   Future<void> _saveAssignment() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedProductionId == null || _selectedProductionId!.trim().isEmpty) {
+    if (_selectedProductionId == null ||
+        _selectedProductionId!.trim().isEmpty) {
       setState(() {
         _errorMessage = 'Please select a production.';
       });
       return;
     }
 
-    final userId = (_selectedUserId != null && _selectedUserId!.trim().isNotEmpty)
+    final userId =
+        (_selectedUserId != null && _selectedUserId!.trim().isNotEmpty)
         ? _selectedUserId!.trim()
         : 'user-${DateTime.now().millisecondsSinceEpoch}';
 
@@ -177,6 +186,35 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
       ),
       body: _isLoadingData
           ? const Center(child: CircularProgressIndicator())
+          : _loadErrorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Unable to load assignment choices: $_loadErrorMessage',
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _loadDependencies,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _productions.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Create a production before assigning cast roles.'),
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Center(
@@ -197,14 +235,17 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.error_outline,
-                                    color: theme.colorScheme.error),
+                                Icon(
+                                  Icons.error_outline,
+                                  color: theme.colorScheme.error,
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     _errorMessage!,
                                     style: TextStyle(
-                                        color: theme.colorScheme.error),
+                                      color: theme.colorScheme.error,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -216,8 +257,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Production Selector
                         Text(
                           'Production *',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         if (_productions.isNotEmpty)
@@ -256,7 +298,8 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                               labelText: 'Production ID *',
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (val) => _selectedProductionId = val.trim(),
+                            onChanged: (val) =>
+                                _selectedProductionId = val.trim(),
                             validator: (val) {
                               if (val == null || val.trim().isEmpty) {
                                 return 'Production ID is required.';
@@ -269,15 +312,17 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Character Role
                         Text(
                           'Character / Part Name *',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         TextFormField(
                           key: const Key('character_role_input'),
                           controller: _roleController,
                           decoration: const InputDecoration(
-                            hintText: 'e.g. Romeo, Juliet, Mercutio, Stage Manager',
+                            hintText:
+                                'e.g. Romeo, Juliet, Mercutio, Stage Manager',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.star_outline),
                           ),
@@ -294,8 +339,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         if (_eligibleUsers.isNotEmpty) ...[
                           Text(
                             'Select Registered Cast Member (Optional)',
-                            style: theme.textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
@@ -328,8 +374,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Actor Name
                         Text(
                           'Actor / Member Name *',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         TextFormField(
@@ -352,8 +399,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Actor Email
                         Text(
                           'Actor Contact Email',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         TextFormField(
@@ -370,8 +418,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Status
                         Text(
                           'Role Status',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         DropdownButtonFormField<String>(
@@ -380,13 +429,12 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                           initialValue: _selectedStatus,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.assignment_turned_in_outlined),
+                            prefixIcon: Icon(
+                              Icons.assignment_turned_in_outlined,
+                            ),
                           ),
                           items: CastAssignmentStatus.all.map((s) {
-                            return DropdownMenuItem(
-                              value: s,
-                              child: Text(s),
-                            );
+                            return DropdownMenuItem(value: s, child: Text(s));
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
@@ -401,8 +449,9 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                         // Notes
                         Text(
                           'Notes / Casting Details',
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         TextFormField(
@@ -438,9 +487,11 @@ class _AssignCastScreenState extends State<AssignCastScreen> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : Text(widget.isEditing
-                                    ? 'Update Assignment'
-                                    : 'Confirm Assignment'),
+                                : Text(
+                                    widget.isEditing
+                                        ? 'Update Assignment'
+                                        : 'Confirm Assignment',
+                                  ),
                           ),
                         ),
                       ],

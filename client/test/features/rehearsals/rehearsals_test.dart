@@ -320,6 +320,20 @@ void main() {
       );
     });
 
+    testWidgets('hides Schedule Rehearsal button when user is a Cast Member', (WidgetTester tester) async {
+      final fakeService = FakeRehearsalService(initialRehearsals: []);
+      await tester.pumpWidget(
+        buildApp(RehearsalsScreen(
+          rehearsalService: fakeService,
+          isDirector: false,
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Schedule Rehearsal'), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNothing);
+    });
+
     testWidgets('renders list of rehearsal cards', (WidgetTester tester) async {
       final rehearsals = [
         Rehearsal(

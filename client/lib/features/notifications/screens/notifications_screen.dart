@@ -29,6 +29,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   String? _userId;
   String _filter = 'All'; // 'All' or 'Unread'
+  late Stream<List<AppNotification>> _notificationsStream;
 
   @override
   void initState() {
@@ -50,27 +51,57 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _userId = 'guest';
       }
     }
+    _notificationsStream = _notificationService.streamNotifications(
+      userId: _userId ?? 'guest',
+    );
   }
 
-  void _markAsRead(AppNotification notification) {
+  void _retryNotifications() {
+    setState(() {
+      _notificationsStream = _notificationService.streamNotifications(
+        userId: _userId ?? 'guest',
+      );
+    });
+  }
+
+  Future<void> _markAsRead(AppNotification notification) async {
     if (!notification.read) {
-      _notificationService.markAsRead(notification.id, userId: _userId ?? '');
+      try {
+        await _notificationService.markAsRead(
+          notification.id,
+          userId: _userId ?? '',
+        );
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unable to mark notification as read: $error'),
+            ),
+          );
+        }
+      }
     }
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
     if (_userId != null) {
-      _notificationService.markAllAsRead(_userId!);
+      try {
+        await _notificationService.markAllAsRead(_userId!);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Unable to update notifications: $error')),
+          );
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final userId = _userId ?? 'guest';
-
     final content = StreamBuilder<List<AppNotification>>(
-      stream: _notificationService.streamNotifications(userId: userId),
+      stream: _notificationsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -88,6 +119,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text('Error loading notifications: ${snapshot.error}'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _retryNotifications,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try Again'),
+                ),
               ],
             ),
           );

@@ -1,3 +1,5 @@
+import 'package:client/services/auth_service.dart';
+import 'package:client/services/user_service.dart';
 import 'package:flutter/material.dart';
 
 import '../../productions/services/production_service.dart';
@@ -12,6 +14,9 @@ class RehearsalsScreen extends StatefulWidget {
   final ProductionService? productionService;
   final bool showAppBar;
   final String? initialProductionFilter;
+  final AuthService? authService;
+  final UserService? userService;
+  final bool? isDirector;
 
   const RehearsalsScreen({
     super.key,
@@ -19,6 +24,9 @@ class RehearsalsScreen extends StatefulWidget {
     this.productionService,
     this.showAppBar = true,
     this.initialProductionFilter,
+    this.authService,
+    this.userService,
+    this.isDirector,
   });
 
   @override
@@ -28,16 +36,45 @@ class RehearsalsScreen extends StatefulWidget {
 class _RehearsalsScreenState extends State<RehearsalsScreen> {
   late RehearsalService _service;
   late Stream<List<Rehearsal>> _rehearsalsStream;
+  late final AuthService _authService;
+  late final UserService _userService;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   String? _selectedProductionFilter;
+  String _userRole = 'Unverified';
+
+  bool get _isDirector =>
+      widget.isDirector ??
+      (_userRole == 'Director' ||
+          (widget.authService == null &&
+              widget.userService == null &&
+              widget.isDirector == null));
 
   @override
   void initState() {
     super.initState();
     _service = widget.rehearsalService ?? RehearsalService();
+    _authService = widget.authService ?? AuthService();
+    _userService = widget.userService ?? UserService();
     _selectedProductionFilter = widget.initialProductionFilter;
     _rehearsalsStream = _service.streamRehearsals();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    if (widget.isDirector != null) return;
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final profile = await _userService.getUserProfile(user.uid);
+        final role = profile?['role']?.toString().trim();
+        if (role != null && mounted) {
+          setState(() {
+            _userRole = role;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -87,6 +124,7 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
           rehearsal: rehearsal,
           rehearsalService: _service,
           productionService: widget.productionService,
+          isDirector: _isDirector,
         ),
       ),
     );
@@ -313,8 +351,8 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                               child: RehearsalCard(
                                 rehearsal: item,
                                 onTap: () => _navigateToDetails(item),
-                                onEdit: () => _navigateToEdit(item),
-                                onDelete: () => _deleteRehearsal(item),
+                                onEdit: _isDirector ? () => _navigateToEdit(item) : null,
+                                onDelete: _isDirector ? () => _deleteRehearsal(item) : null,
                               ),
                             );
                           }, childCount: filteredList.length),
@@ -339,8 +377,8 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                           return RehearsalCard(
                             rehearsal: item,
                             onTap: () => _navigateToDetails(item),
-                            onEdit: () => _navigateToEdit(item),
-                            onDelete: () => _deleteRehearsal(item),
+                            onEdit: _isDirector ? () => _navigateToEdit(item) : null,
+                            onDelete: _isDirector ? () => _deleteRehearsal(item) : null,
                           );
                         }, childCount: filteredList.length),
                       );
@@ -353,14 +391,16 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
       },
     );
 
-    final fab = FloatingActionButton.extended(
-      key: const Key('add_rehearsal_fab'),
-      onPressed: _navigateToAddRehearsal,
-      backgroundColor: const Color(0xFF8B1E3F),
-      foregroundColor: Colors.white,
-      icon: const Icon(Icons.add),
-      label: const Text('Schedule Rehearsal'),
-    );
+    final fab = _isDirector
+        ? FloatingActionButton.extended(
+            key: const Key('add_rehearsal_fab'),
+            onPressed: _navigateToAddRehearsal,
+            backgroundColor: const Color(0xFF8B1E3F),
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add),
+            label: const Text('Schedule Rehearsal'),
+          )
+        : null;
 
     if (!widget.showAppBar) {
       return Scaffold(body: content, floatingActionButton: fab);
@@ -373,9 +413,10 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: MediaQuery.sizeOf(context).width < 500
+          if (_isDirector)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: MediaQuery.sizeOf(context).width < 500
                 ? IconButton(
                     key: const Key('appbar_schedule_rehearsal_button'),
                     onPressed: _navigateToAddRehearsal,
@@ -590,7 +631,7 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                 ),
               ),
             ),
-            if (!isFiltered) ...[
+            if (!isFiltered && _isDirector) ...[
               const SizedBox(height: 14),
               FilledButton.icon(
                 key: const Key('empty_schedule_rehearsal_button'),
@@ -637,8 +678,9 @@ class _RehearsalsScreenState extends State<RehearsalsScreen> {
                       ),
                     ),
                   ),
-                  FilledButton.icon(
-                    key: const Key('filtered_schedule_rehearsal_button'),
+                  if (_isDirector)
+                    FilledButton.icon(
+                      key: const Key('filtered_schedule_rehearsal_button'),
                     onPressed: _navigateToAddRehearsal,
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Schedule Rehearsal'),

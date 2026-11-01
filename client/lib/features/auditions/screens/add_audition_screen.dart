@@ -44,6 +44,8 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
   String? _saveError;
 
   bool _isSaving = false;
+  bool _isLoadingProductions = false;
+  String? _productionLoadError;
   List<Production> _availableProductions = [];
 
   late final AuditionService _service;
@@ -86,16 +88,26 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
   }
 
   Future<void> _loadAvailableProductions() async {
+    setState(() {
+      _isLoadingProductions = true;
+      _productionLoadError = null;
+    });
     try {
-      final productions = await _productionService.getProductions().timeout(
-        const Duration(seconds: 2),
-      );
+      final productions = await _productionService.getProductions();
       if (mounted) {
         setState(() {
           _availableProductions = productions;
+          _isLoadingProductions = false;
         });
       }
-    } catch (_) {}
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoadingProductions = false;
+          _productionLoadError = error.toString();
+        });
+      }
+    }
   }
 
   @override
@@ -238,19 +250,10 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
     });
 
     try {
-      String currentUid = 'director-user-default';
-      try {
-        final user = _authService.currentUser;
-        if (user?.uid.isNotEmpty == true) {
-          currentUid = user!.uid;
-        } else if (widget.initialAudition?.creatorUid.isNotEmpty == true) {
-          currentUid = widget.initialAudition!.creatorUid;
-        }
-      } catch (_) {
-        if (widget.initialAudition?.creatorUid.isNotEmpty == true) {
-          currentUid = widget.initialAudition!.creatorUid;
-        }
-      }
+      // The callable derives the authoritative creator UID from auth context.
+      // Keep this field empty when the client has no signed-in user; never send
+      // a fabricated identity or trust the existing record's creator.
+      final currentUid = _tryGetCurrentUid();
 
       final audition = Audition(
         id: widget.initialAudition?.id ?? '',
@@ -262,9 +265,7 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
         endTime: _calculatedEndDateTime,
         requirements: _requirementsController.text.trim(),
         description: _descriptionController.text.trim(),
-        creatorUid: widget.initialAudition?.creatorUid.isNotEmpty == true
-            ? widget.initialAudition!.creatorUid
-            : currentUid,
+        creatorUid: currentUid,
         status: widget.initialAudition?.status ?? AuditionStatus.scheduled,
       );
 
@@ -310,6 +311,14 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  String _tryGetCurrentUid() {
+    try {
+      return _authService.currentUser?.uid ?? '';
+    } catch (_) {
+      return '';
     }
   }
 
@@ -398,6 +407,26 @@ class _AddAuditionScreenState extends State<AddAuditionScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  if (_isLoadingProductions) const LinearProgressIndicator(),
+                  if (_productionLoadError != null)
+                    MaterialBanner(
+                      content: Text(
+                        'Unable to load productions: $_productionLoadError',
+                      ),
+                      leading: const Icon(Icons.error_outline),
+                      actions: [
+                        TextButton(
+                          onPressed: _loadAvailableProductions,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  if (!_isLoadingProductions &&
+                      _productionLoadError == null &&
+                      _availableProductions.isEmpty)
+                    const Text(
+                      'No productions found. Create a production before scheduling an audition.',
+                    ),
                   const SizedBox(height: 8),
                   if (_availableProductions.isNotEmpty)
                     DropdownButtonFormField<String>(
