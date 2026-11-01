@@ -13,7 +13,7 @@
     "test": "npm run test:unit && npm run test:transaction && npm run test:integration"
   },
   "dependencies": {
-    "firebase-admin": "^13.5.0",
-    "firebase-functions": "^6.4.0"
+    "firebase-admin": "^13.10.0",
+    "firebase-functions": "^6.6.0"
   }
 }
