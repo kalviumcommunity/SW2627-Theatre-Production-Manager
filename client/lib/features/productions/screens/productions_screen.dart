@@ -365,7 +365,7 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Productions Catalog',
+              'Productions catalogue',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 letterSpacing: -0.3,

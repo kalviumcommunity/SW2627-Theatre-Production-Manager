@@ -631,7 +631,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(ProductionsScreen), findsOneWidget);
-        expect(find.text('Productions Catalog'), findsOneWidget);
+        expect(find.text('Productions catalogue'), findsOneWidget);
       },
     );
 
